@@ -1,0 +1,16 @@
+{
+  "name": "@rocket/core",
+  "version": "0.1.0",
+  "description": "Nuxt layer of the Rocket applications (nuxt/), installed from GitHub: \"@rocket/core\": \"github:fayouz/rocket-core#<ref>\".",
+  "private": true,
+  "type": "module",
+  "files": [
+    "nuxt/app",
+    "nuxt/server",
+    "nuxt/nuxt.config.ts"
+  ],
+  "peerDependencies": {
+    "@nuxt/ui": "^4.11.2",
+    "nuxt": "^4.5.2"
+  }
+}
