@@ -4,6 +4,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // End of a single sign-on: the page completes it itself.
   if (to.path === '/auth/callback') return
+  // Public pages of the application (app.config.ts, rocket.publicPaths).
+  if (useAppConfig().rocket.publicPaths.some(prefix => to.path.startsWith(prefix))) return
 
   const auth = useAuth()
   // Standalone or suite mode: sign-in, menu and logout depend on it.

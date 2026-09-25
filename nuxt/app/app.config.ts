@@ -18,6 +18,8 @@ export default defineAppConfig({
     tagline: 'Connectez-vous avec votre compte local ou votre compte d’annuaire (LDAP).',
     // Main menu: the domain pages ("label" entries start a group).
     navigation: [] as { label: string, icon?: string, to?: string, type?: 'label', exact?: boolean, exactQuery?: boolean, admin?: boolean }[],
+    // Pages opened without an account, by path prefix (e.g. '/s/' for share links).
+    publicPaths: [] as string[],
     // Extra entries of the Administration menu.
     adminNavigation: [] as { label: string, icon: string, to: string, exactQuery?: boolean }[],
     // "Services & raccourcis" of the dashboard, besides the documentation, changelog and API.

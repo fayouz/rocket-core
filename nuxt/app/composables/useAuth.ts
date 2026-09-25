@@ -48,10 +48,14 @@ export function useAuth() {
     return me.value
   }
 
-  /** Ends the session; in suite mode, also the Rocket Auth session (RP-initiated logout), back on /login. */
-  async function logout() {
+  /**
+   * Ends the session; in suite mode, also the Rocket Auth session (RP-initiated logout), back on /login.
+   * redirect = false: only forgets the session (e.g. an expired token on a public page).
+   */
+  async function logout(redirect = true) {
     setToken(null)
     me.value = null
+    if (!redirect) return
     const logoutUrl = useSuite().info.value?.auth?.logoutUrl
     if (logoutUrl) {
       const back = `${window.location.origin}/login?logged_out=1`
