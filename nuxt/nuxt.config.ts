@@ -35,6 +35,8 @@ export default defineNuxtConfig({
     },
   },
   icon: {
+    // Icons are served by the front itself, never by a third-party CDN (also with ssr: false).
+    provider: 'server',
     serverBundle: { collections: ['lucide'] },
     // /api/** is proxied to the Symfony API: the icon endpoint lives elsewhere, so icons missing from the client bundle
     // (named in app.config.ts or sent by the API) still load.

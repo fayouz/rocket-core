@@ -15,9 +15,9 @@ export default defineAppConfig({
     // Login page subtitle.
     tagline: 'Connectez-vous avec votre compte local ou votre compte d’annuaire (LDAP).',
     // Main menu: the domain pages ("label" entries start a group).
-    navigation: [] as { label: string, icon?: string, to?: string, type?: 'label', exact?: boolean, admin?: boolean }[],
+    navigation: [] as { label: string, icon?: string, to?: string, type?: 'label', exact?: boolean, exactQuery?: boolean, admin?: boolean }[],
     // Extra entries of the Administration menu.
-    adminNavigation: [] as { label: string, icon: string, to: string }[],
+    adminNavigation: [] as { label: string, icon: string, to: string, exactQuery?: boolean }[],
     // "Services & raccourcis" of the dashboard, besides the documentation, changelog and API.
     shortcuts: [] as { label: string, description: string, icon: string, to: string, admin?: boolean }[],
     // Hero banner of the dashboard: one quote per day.
