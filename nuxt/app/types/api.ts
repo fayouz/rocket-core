@@ -28,6 +28,8 @@ export interface Me {
   user: User | null
   application: { id: string, name: string } | null
   roles: string[]
+  /** Session of an embedded page (iframe opened by an application). */
+  embed?: boolean
 }
 
 export interface Application extends Tracked {
@@ -37,6 +39,8 @@ export interface Application extends Tracked {
   tokenHint: string
   plainToken?: string
   canImpersonate: boolean
+  /** Origins allowed to embed the application's pages (/embed/…). */
+  allowedOrigins: string[]
   enabled: boolean
   lastUsedAt: string | null
 }

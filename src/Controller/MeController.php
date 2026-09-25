@@ -23,6 +23,7 @@ final class MeController extends AbstractController
             ],
             // Effective roles for this session (an application acting as a user never gets ROLE_ADMIN).
             'roles' => $security->getToken()?->getRoleNames() ?? [],
+            'embed' => $actor->isEmbed(),
         ], context: ['groups' => ['user:read']]);
     }
 }

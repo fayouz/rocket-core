@@ -18,6 +18,8 @@ export default defineAppConfig({
     tagline: 'Connectez-vous avec votre compte local ou votre compte d’annuaire (LDAP).',
     // Main menu: the domain pages ("label" entries start a group).
     navigation: [] as { label: string, icon?: string, to?: string, type?: 'label', exact?: boolean, exactQuery?: boolean, admin?: boolean }[],
+    // The application has pages other applications embed (/embed/…, see useEmbedBridge): origins field on the applications.
+    embed: false,
     // Pages opened without an account, by path prefix (e.g. '/s/' for share links).
     publicPaths: [] as string[],
     // Extra entries of the Administration menu.

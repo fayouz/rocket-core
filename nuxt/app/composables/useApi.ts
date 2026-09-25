@@ -4,13 +4,14 @@ import { FetchError } from 'ofetch'
 type ApiOptions = NitroFetchOptions<NitroFetchRequest>
 
 /**
- * $fetch bound to the API with the current credentials. An expired session leads back to the login page.
+ * $fetch bound to the API with the current credentials. An expired session leads back to the login page;
+ * in an embedded page, the token is renewed through the host page once, then the call is retried.
  */
 export function useApi() {
   const config = useRuntimeConfig()
   const auth = useAuth()
 
-  return async function api<T>(url: string, options: ApiOptions = {}): Promise<T> {
+  return async function api<T>(url: string, options: ApiOptions = {}, retried = false): Promise<T> {
     const headers = new Headers(options.headers as HeadersInit | undefined)
     if (!headers.has('Accept')) headers.set('Accept', 'application/json')
     const authorization = auth.authorizationHeader()
@@ -22,7 +23,11 @@ export function useApi() {
     }
     catch (error) {
       if (error instanceof FetchError && error.statusCode === 401) {
-        await auth.logout()
+        if (auth.embedToken.value && !retried) {
+          await useEmbedBridge().renewToken()
+          return api<T>(url, options, true)
+        }
+        if (!auth.embedToken.value) await auth.logout()
       }
       throw error
     }

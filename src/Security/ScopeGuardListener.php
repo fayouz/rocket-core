@@ -2,7 +2,9 @@
 
 namespace Rocket\Core\Security;
 
+use Rocket\Core\Embed\EmbedEndpointsInterface;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -10,6 +12,7 @@ use Symfony\Component\HttpKernel\KernelEvents;
 
 /**
  * Restricts delegated sessions to an allow-list of endpoints:
+ * - embed sessions (ROLE_EMBED) can only call the endpoints declared by the brick (EmbedEndpointsInterface);
  * - applications that do not impersonate anyone can only identify themselves.
  * Runs after the firewall (priority 8).
  */
@@ -20,8 +23,17 @@ final class ScopeGuardListener
         ['GET', '#^/api/me$#'],
     ];
 
-    public function __construct(private readonly Security $security)
-    {
+    private const EMBED_ALLOWED = [
+        ['GET', '#^/api/me$#'],
+        ['GET', '#^/api/embed/context$#'],
+    ];
+
+    /** @param iterable<EmbedEndpointsInterface> $embedEndpoints */
+    public function __construct(
+        private readonly Security $security,
+        #[AutowireIterator('rocket.embed_endpoints')]
+        private readonly iterable $embedEndpoints = [],
+    ) {
     }
 
     public function __invoke(RequestEvent $event): void
@@ -34,6 +46,7 @@ final class ScopeGuardListener
         $user = $this->security->getUser();
         $allowed = match (true) {
             $user instanceof ApplicationUser => self::APPLICATION_ALLOWED,
+            null !== $user && $this->security->isGranted(Roles::EMBED) => $this->embedAllowed(),
             default => null,
         };
 
@@ -48,5 +61,18 @@ final class ScopeGuardListener
         }
 
         throw new AccessDeniedHttpException('This endpoint is not available with the current credentials.');
+    }
+
+    /** @return list<array{0: string, 1: string}> */
+    private function embedAllowed(): array
+    {
+        $allowed = self::EMBED_ALLOWED;
+        foreach ($this->embedEndpoints as $provider) {
+            foreach ($provider->embedEndpoints() as $endpoint) {
+                $allowed[] = $endpoint;
+            }
+        }
+
+        return $allowed;
     }
 }

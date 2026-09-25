@@ -78,6 +78,12 @@ class Application
     #[Groups(['app:read', 'app:write'])]
     private bool $canImpersonate = false;
 
+    /** @var list<string> Origins allowed to embed the application's pages (iframe, see EmbedController) (CSP frame-ancestors). */
+    #[ORM\Column]
+    #[Assert\All([new Assert\Regex(pattern: '#^https?://[a-z0-9.\-]+(:\d+)?$#i', message: 'Each origin must look like https://example.com[:port].')])]
+    #[Groups(['app:read', 'app:write'])]
+    private array $allowedOrigins = [];
+
     #[ORM\Column]
     #[Groups(['app:read', 'app:write'])]
     private bool $enabled = true;
@@ -157,6 +163,20 @@ class Application
     public function getPlainToken(): ?string
     {
         return $this->plainToken;
+    }
+
+    /** @return list<string> */
+    public function getAllowedOrigins(): array
+    {
+        return $this->allowedOrigins;
+    }
+
+    /** @param list<string> $allowedOrigins */
+    public function setAllowedOrigins(array $allowedOrigins): static
+    {
+        $this->allowedOrigins = array_values(array_unique(array_map(static fn (string $o) => rtrim(trim($o), '/'), $allowedOrigins)));
+
+        return $this;
     }
 
     public function canImpersonate(): bool

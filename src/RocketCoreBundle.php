@@ -84,6 +84,7 @@ final class RocketCoreBundle extends AbstractBundle
 
     /** Defaults of the environment variables read by the core. */
     private const ENV_DEFAULTS = [
+        'EMBED_TOKEN_TTL' => '900',
         'LDAP_ENABLED' => '0',
         'LDAP_URL' => 'ldap://localhost:389',
         'LDAP_BASE_DN' => '',

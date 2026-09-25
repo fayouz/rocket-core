@@ -18,11 +18,15 @@ export function useAuth() {
       : `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Strict${secure}`
   }
   const me = useState<Me | null>('rocket_me', () => null)
+  // Session of an embedded page (/embed/…), handed over by the host application: kept in memory only,
+  // third-party iframes cannot rely on cookies.
+  const embedToken = useState<string | null>('rocket_embed_token', () => null)
 
-  const isAuthenticated = computed(() => !!token.value)
+  const isAuthenticated = computed(() => !!(embedToken.value || token.value))
   const isAdmin = computed(() => me.value?.roles.includes('ROLE_ADMIN') ?? false)
 
   function authorizationHeader(): string | undefined {
+    if (embedToken.value) return `Embed ${embedToken.value}`
     if (token.value) return `Bearer ${token.value}`
     return undefined
   }
@@ -65,5 +69,5 @@ export function useAuth() {
     await navigateTo('/login')
   }
 
-  return { token: readonly(token), me, isAuthenticated, isAdmin, authorizationHeader, login, startSession, fetchMe, logout }
+  return { token: readonly(token), embedToken, me, isAuthenticated, isAdmin, authorizationHeader, login, startSession, fetchMe, logout }
 }

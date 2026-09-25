@@ -7,6 +7,8 @@ final class Roles
     public const ADMIN = 'ROLE_ADMIN';
     public const APPLICATION = 'ROLE_APPLICATION';
     public const IMPERSONATION = 'ROLE_IMPERSONATION';
+    /** Session of an embedded page (iframe) opened by an application for one of its users: see EmbedTokenAuthenticator. */
+    public const EMBED = 'ROLE_EMBED';
 
     /**
      * Roles granted when a user is acted upon by an application: never elevated privileges.

@@ -2,6 +2,9 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // Public redirects to the documentation site (docs and changelog).
   if (to.path === '/changelog' || to.path === '/docs' || to.path.startsWith('/docs/')) return
 
+  // Embedded pages authenticate themselves with a token handed over by the host application (useEmbedBridge).
+  if (to.path.startsWith('/embed/')) return
+
   // End of a single sign-on: the page completes it itself.
   if (to.path === '/auth/callback') return
   // Public pages of the application: by path prefix (app.config.ts, rocket.publicPaths), or by page:

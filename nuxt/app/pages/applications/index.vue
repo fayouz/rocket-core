@@ -4,6 +4,8 @@ import type { Application } from '#rocket/types/api'
 
 definePageMeta({ admin: true })
 const appName = useAppConfig().rocket.name
+// Pages the applications may embed (iframe on /embed/…): only for the bricks that have some.
+const embed = useAppConfig().rocket.embed
 useHead({ title: `Applications · ${appName}` })
 
 const api = useApi()
@@ -41,6 +43,7 @@ const columns: TableColumn<Application>[] = [
     header: 'Impersonation',
     cell: ({ row }) => h(UBadge, { variant: 'subtle', color: row.original.canImpersonate ? 'warning' : 'neutral', label: row.original.canImpersonate ? 'Autorisée' : 'Non' }),
   },
+  ...(embed ? [{ accessorKey: 'allowedOrigins', header: 'Origines (embed)', cell: ({ row }) => row.original.allowedOrigins.join(', ') || '—' }] as TableColumn<Application>[] : []),
   { accessorKey: 'lastUsedAt', header: 'Dernier appel', cell: ({ row }) => formatDate(row.original.lastUsedAt) },
   {
     accessorKey: 'enabled',
@@ -60,11 +63,11 @@ const columns: TableColumn<Application>[] = [
 // Create / edit
 const formOpen = ref(false)
 const editing = ref<Application | null>(null)
-const form = reactive({ name: '', description: '', canImpersonate: true })
+const form = reactive({ name: '', description: '', canImpersonate: true, allowedOrigins: [] as string[] })
 
 function create() {
   editing.value = null
-  Object.assign(form, { name: '', description: '', canImpersonate: true })
+  Object.assign(form, { name: '', description: '', canImpersonate: true, allowedOrigins: [] })
   formOpen.value = true
 }
 
@@ -79,6 +82,7 @@ function edit(application: Application) {
     name: application.name,
     description: application.description ?? '',
     canImpersonate: application.canImpersonate,
+    allowedOrigins: [...application.allowedOrigins],
   })
   formOpen.value = true
 }
@@ -173,7 +177,10 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
             <UFormField label="Description">
               <UTextarea v-model="form.description" class="w-full" :rows="2" />
             </UFormField>
-            <USwitch v-model="form.canImpersonate" label="Peut agir en tant qu'utilisateur (impersonation)" />
+            <USwitch v-model="form.canImpersonate" :label="embed ? 'Peut agir en tant qu\'utilisateur (impersonation + embed)' : 'Peut agir en tant qu\'utilisateur (impersonation)'" />
+            <UFormField v-if="embed" label="Origines autorisées à embarquer les pages" hint="ex. https://crm.exemple.com">
+              <UInputTags v-model="form.allowedOrigins" add-on-blur add-on-paste class="w-full" />
+            </UFormField>
           </form>
         </template>
         <template #footer>

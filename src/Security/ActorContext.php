@@ -47,4 +47,9 @@ final class ActorContext
         return $this->applications->find($token->getAttribute(self::APPLICATION_ATTRIBUTE));
     }
 
+    public function isEmbed(): bool
+    {
+        return $this->security->isGranted(Roles::EMBED);
+    }
+
 }

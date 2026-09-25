@@ -36,7 +36,7 @@ rocket_core:
     resource: '@RocketCoreBundle/config/routes.php'
 ```
 
-Le bundle déclare ses entités (Doctrine et API Platform), ses routes, ses migrations (exécutées avec celles de l'application, dans l'ordre de leurs dates) et envoie les messages `Rocket\Core\Message\AsyncMessageInterface` sur le transport `async`. L'application garde son `security.yaml`, qui utilise les classes du bundle (`Rocket\Core\Entity\User`, `Rocket\Core\Security\LoginAuthenticator`, `ApplicationTokenAuthenticator`, `UserChecker`) et rend publiques `^/api/auth/login$`, `^/api/(setup|suite)$` et `^/api/auth/(providers|oidc/callback)$` (voir `tests/App/config/packages/security.yaml`).
+Le bundle déclare ses entités (Doctrine et API Platform), ses routes, ses migrations (exécutées avec celles de l'application, dans l'ordre de leurs dates) et envoie les messages `Rocket\Core\Message\AsyncMessageInterface` sur le transport `async`. L'application garde son `security.yaml`, qui utilise les classes du bundle (`Rocket\Core\Entity\User`, `Rocket\Core\Security\LoginAuthenticator`, `ApplicationTokenAuthenticator`, `EmbedTokenAuthenticator`, `UserChecker`) et rend publiques `^/api/auth/login$`, `^/api/(setup|suite)$`, `^/api/embed/frame-policy$` et `^/api/auth/(providers|oidc/callback)$` (voir `tests/App/config/packages/security.yaml`).
 
 Points d'extension, par simple implémentation d'une interface (autoconfiguration) :
 
@@ -46,6 +46,9 @@ Points d'extension, par simple implémentation d'une interface (autoconfiguratio
 | `Health\ServiceProbeInterface` | dépendance réseau vérifiée toutes les 5 minutes et affichée dans l'état des services |
 | `Command\DemoSeederInterface` | données de démo, chargées par `app:demo:seed` |
 | `Scheduler\RecurringTaskProviderInterface` | tâches planifiées, exécutées par le worker |
+| `Embed\EmbedEndpointsInterface` | endpoints accessibles aux pages embarquées (voir ci-dessous) |
+
+**Pages embarquées (iframe).** Une application externe autorisée à agir en tant qu'utilisateur obtient, côté serveur, un jeton court (`POST /api/embed/token`, avec `X-Impersonate-User`, durée `EMBED_TOKEN_TTL`, 900 s par défaut) qu'elle transmet à une page `/embed/…?app=<id>` de la brique. Seules les origines déclarées sur l'application (`allowedOrigins`) peuvent afficher ces pages (`frame-ancestors`, `GET /api/embed/frame-policy`) et leur parler (`postMessage`). La session obtenue (`Authorization: Embed <jeton>`, rôle `ROLE_EMBED`, jamais administrateur) n'atteint que `GET /api/me`, `GET /api/embed/context` et les endpoints déclarés par la brique. Côté front, `useEmbedBridge().connect(appId)` ouvre la session et `rocket.embed: true` (app.config) affiche le champ des origines dans l'administration des applications.
 
 ### Front (Nuxt 4)
 

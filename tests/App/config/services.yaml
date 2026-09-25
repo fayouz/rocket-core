@@ -7,3 +7,4 @@ services:
         autoconfigure: true
 
     Rocket\Core\Tests\Support\HttpMock: ~
+    Rocket\Core\Tests\Support\EmbedEndpoints: ~

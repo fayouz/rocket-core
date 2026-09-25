@@ -35,9 +35,9 @@ trait ApiTestTrait
     }
 
     /** @return array{0: Application, 1: string} the application and its secret */
-    protected function createApplication(bool $canImpersonate = true, string $name = 'Partner CRM'): array
+    protected function createApplication(bool $canImpersonate = true, string $name = 'Partner CRM', array $origins = ['https://partner.example']): array
     {
-        $application = (new Application())->setName($name)->setCanImpersonate($canImpersonate);
+        $application = (new Application())->setName($name)->setCanImpersonate($canImpersonate)->setAllowedOrigins($origins);
         $token = $application->rotateToken();
         $this->em()->persist($application);
         $this->em()->flush();
