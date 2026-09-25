@@ -9,7 +9,8 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * The applications of the suite, for the application switcher: published by Rocket Auth (GET /api/suite/apps,
- * its OpenID Connect clients shown in the switcher), cached 5 minutes. Empty when Rocket Auth cannot be reached.
+ * its OpenID Connect clients shown in the switcher, and the address of its own interface for "Mon compte"),
+ * cached 5 minutes. Empty when Rocket Auth cannot be reached.
  */
 final class SuiteApps
 {
@@ -24,11 +25,23 @@ final class SuiteApps
     /** @return list<array{id: string, name: string, url: string, icon: string|null, description: string|null}> */
     public function all(): array
     {
+        return $this->load()['apps'];
+    }
+
+    /** Interface of Rocket Auth (the accounts), null when it does not say: its address (ROCKET_AUTH_URL) is then used. */
+    public function accountUrl(): ?string
+    {
+        return $this->load()['account'];
+    }
+
+    /** @return array{apps: list<array{id: string, name: string, url: string, icon: string|null, description: string|null}>, account: string|null} */
+    private function load(): array
+    {
         if (!$this->suite->isSuite()) {
-            return [];
+            return ['apps' => [], 'account' => null];
         }
 
-        return $this->cache->get('rocket_suite_apps_'.md5($this->suite->authUrl()), function (ItemInterface $item): array {
+        return $this->cache->get('rocket_suite_apps_v2_'.md5($this->suite->authUrl()), function (ItemInterface $item): array {
             $item->expiresAfter(300);
             $base = '' !== $this->suite->authInternalUrl() ? $this->suite->authInternalUrl() : $this->suite->authUrl();
             try {
@@ -37,7 +50,7 @@ final class SuiteApps
                 $this->logger->warning('Rocket Auth: applications of the suite unavailable ({message}).', ['message' => $e->getMessage()]);
                 $item->expiresAfter(30);
 
-                return [];
+                return ['apps' => [], 'account' => null];
             }
             $apps = [];
             foreach ((array) ($data['apps'] ?? $data) as $app) {
@@ -52,7 +65,9 @@ final class SuiteApps
                 }
             }
 
-            return $apps;
+            $account = $data['account'] ?? null;
+
+            return ['apps' => $apps, 'account' => \is_string($account) && preg_match('#^https?://#i', $account) ? $account : null];
         });
     }
 }

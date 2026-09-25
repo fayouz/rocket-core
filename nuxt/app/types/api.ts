@@ -299,6 +299,6 @@ export interface SuiteInfo {
   app: { id: string, name: string }
   /** Local passwords accepted: always standalone, emergency access only in suite mode. */
   localLogin: boolean
-  auth: { name: string, url: string, providerId: string, logoutUrl: string | null } | null
+  auth: { name: string, url: string, /** Interface of Rocket Auth ("Mon compte"). */ accountUrl: string, providerId: string, logoutUrl: string | null } | null
   apps: SuiteApp[]
 }

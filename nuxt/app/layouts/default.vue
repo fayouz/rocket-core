@@ -20,7 +20,7 @@ const switcher = computed(() => [
     target: '_self',
     disabled: other.id === suite.value?.app.id,
   })),
-  suite.value?.auth ? [{ label: `Mon compte (${suite.value.auth.name})`, icon: 'i-lucide-user-cog', to: suite.value.auth.url, target: '_blank' }] : [],
+  suite.value?.auth ? [{ label: `Mon compte (${suite.value.auth.name})`, icon: 'i-lucide-user-cog', to: suite.value.auth.accountUrl, target: '_blank' }] : [],
 ].filter(group => group.length))
 
 const items = computed<NavigationMenuItem[][]>(() => [

@@ -41,6 +41,8 @@ final class SuiteController extends AbstractController
             'auth' => [
                 'name' => SuiteSettings::PROVIDER_NAME,
                 'url' => $suite->authUrl(),
+                // Where users manage their account ("Mon compte"): the interface of Rocket Auth.
+                'accountUrl' => $apps->accountUrl() ?? $suite->authUrl(),
                 // The authentication server to use on the login page (see /api/auth/providers).
                 'providerId' => (string) $server?->getId(),
                 'logoutUrl' => $logoutUrl,

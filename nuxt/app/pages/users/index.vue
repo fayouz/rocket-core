@@ -184,7 +184,7 @@ async function syncLdap(dryRun: boolean) {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton v-if="isSuite && suite?.auth" icon="i-lucide-external-link" :label="`Gérer dans ${suite.auth.name}`" :to="suite.auth.url" target="_blank" />
+          <UButton v-if="isSuite && suite?.auth" icon="i-lucide-external-link" :label="`Gérer dans ${suite.auth.name}`" :to="suite.auth.accountUrl" target="_blank" />
           <template v-else>
             <UButton icon="i-lucide-flask-conical" label="Simuler la synchro" color="neutral" variant="ghost" :loading="syncing" @click="syncLdap(true)" />
             <UButton icon="i-lucide-refresh-cw" label="Synchroniser LDAP" color="neutral" variant="outline" :loading="syncing" @click="syncLdap(false)" />

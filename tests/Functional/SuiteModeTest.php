@@ -31,7 +31,7 @@ final class SuiteModeTest extends WebTestCase
         HttpMock::json(self::INTERNAL.'/api/suite/apps', ['apps' => [
             ['id' => 'print', 'name' => 'Rocket Print', 'url' => 'https://print.example.org', 'icon' => 'i-lucide-printer'],
             ['id' => 'bad', 'name' => 'Not a web address', 'url' => 'javascript:alert(1)'],
-        ]]);
+        ], 'account' => 'https://accounts.example.org']);
     }
 
     protected function tearDown(): void
@@ -90,6 +90,8 @@ final class SuiteModeTest extends WebTestCase
         self::assertSame(['name' => 'Rocket Auth', 'url' => self::ISSUER], array_intersect_key($suite['auth'], ['name' => 1, 'url' => 1]));
         self::assertSame(['Rocket Print'], array_column($suite['apps'], 'name'));
         self::assertSame(self::ISSUER.'/logout?client_id=rocket-test', $suite['auth']['logoutUrl']);
+        // "Mon compte": the interface of Rocket Auth, which the issuer may not be.
+        self::assertSame('https://accounts.example.org', $suite['auth']['accountUrl']);
 
         // The Rocket Auth server was declared from the configuration.
         $server = $this->em()->getRepository(AuthenticationServer::class)->findOneBy(['managed' => true]);
