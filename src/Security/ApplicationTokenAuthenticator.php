@@ -18,7 +18,7 @@ use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPasspor
 use Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken;
 
 /**
- * Authenticates external applications with "Authorization: Bearer rpa_…".
+ * Authenticates external applications with "Authorization: Bearer <prefix>…" (rocket_core.token_prefix).
  * With "X-Impersonate-User: <email>", an application allowed to impersonate acts as that user,
  * without ever inheriting ROLE_ADMIN.
  */

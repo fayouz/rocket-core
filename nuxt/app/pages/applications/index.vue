@@ -164,7 +164,7 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
         variant="subtle"
         color="neutral"
         title="Comment ça marche"
-        description="Une application s'authentifie avec son jeton (Authorization: Bearer rpa_…). Si l'impersonation est autorisée, l'en-tête X-Impersonate-User lui permet d'agir en tant qu'un utilisateur, jamais avec le rôle administrateur. Sans impersonation, elle peut seulement s'identifier (GET /api/me)."
+        description="Une application s'authentifie avec son jeton (Authorization: Bearer <jeton>). Si l'impersonation est autorisée, l'en-tête X-Impersonate-User lui permet d'agir en tant qu'un utilisateur, jamais avec le rôle administrateur. Sans impersonation, elle peut seulement s'identifier (GET /api/me)."
       />
       <UTable :data="applications" :columns="columns" :loading="status === 'pending'" empty="Aucune application." />
 
