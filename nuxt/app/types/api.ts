@@ -16,6 +16,8 @@ export interface UserSummary {
 export interface User extends UserSummary, Tracked {
   roles: string[]
   source: 'local' | 'ldap' | 'oidc'
+  /** From the directory, the OpenID Connect provider, or set by hand. */
+  groups: string[]
   authenticationServerName: string | null
   ldapDn: string | null
   ldapSyncedAt: string | null

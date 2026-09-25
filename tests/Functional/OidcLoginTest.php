@@ -141,7 +141,10 @@ final class OidcLoginTest extends WebTestCase
         $server = $this->createServer(adminGroup: 'rocket-admins');
         $this->mockTokenEndpoint(['sub' => 'sub-marie', 'email' => 'marie@example.org', 'groups' => ['staff', 'rocket-admins']]);
         $token = $this->signIn($server)['token'];
-        self::assertContains('ROLE_ADMIN', $this->api('GET', '/api/me', authorization: 'Bearer '.$token)['roles']);
+        $me = $this->api('GET', '/api/me', authorization: 'Bearer '.$token);
+        self::assertContains('ROLE_ADMIN', $me['roles']);
+        // The provider's groups are kept on the account.
+        self::assertSame(['staff', 'rocket-admins'], $me['user']['groups']);
 
         $this->mockTokenEndpoint(['sub' => 'sub-marie', 'email' => 'marie@example.org', 'groups' => ['staff']]);
         $token = $this->signIn($server)['token'];

@@ -62,6 +62,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user:read', 'user:write'])]
     private array $roles = [];
 
+    /**
+     * Groups of the user: from the directory (LDAP accounts), from the "groups" claim of the OpenID Connect provider,
+     * or managed by hand (Rocket Auth sends them to its applications in the "groups" claim).
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(options: ['default' => '[]'])]
+    #[Assert\All([new Assert\NotBlank(), new Assert\Length(max: 100)])]
+    #[Groups(['user:read', 'user:write'])]
+    private array $groups = [];
+
     #[ORM\Column(nullable: true)]
     private ?string $password = null;
 
@@ -266,6 +277,20 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setExternalId(?string $externalId): static
     {
         $this->externalId = $externalId;
+
+        return $this;
+    }
+
+    /** @return list<string> */
+    public function getGroups(): array
+    {
+        return $this->groups;
+    }
+
+    /** @param list<string> $groups */
+    public function setGroups(array $groups): static
+    {
+        $this->groups = array_values(array_unique(array_filter(array_map('trim', $groups), static fn (string $g) => '' !== $g)));
 
         return $this;
     }

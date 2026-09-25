@@ -62,6 +62,11 @@ class OidcAccountLinker
             }
         }
 
+        // The provider's groups (Rocket Auth: its groups and the directory's), kept up to date at each sign-in.
+        if (\is_array($claims['groups'] ?? null)) {
+            $user->setGroups(array_values(array_filter($claims['groups'], 'is_string')));
+        }
+
         if ('' !== $server->getAdminGroupDn() && \array_key_exists('groups', $claims)) {
             $isAdmin = \in_array($server->getAdminGroupDn(), (array) $claims['groups'], true);
             $roles = array_values(array_filter($user->getRoles(), static fn (string $role) => Roles::ADMIN !== $role));
