@@ -19,11 +19,8 @@ final class HealthCheckCommand
 
     public function __invoke(SymfonyStyle $io): int
     {
-        if (!$this->checker->checkAll()) {
-            $io->warning('Checks are already running.');
-
-            return Command::SUCCESS;
-        }
+        // Waits for checks already running (the worker's), then checks again.
+        $this->checker->checkAll(wait: true);
 
         $rows = [];
         $failing = false;
@@ -31,7 +28,7 @@ final class HealthCheckCommand
             $rows[] = [$check->getId(), $check->isOk() ? 'OK' : 'FAILING', $check->getDetail()];
             $failing = $failing || !$check->isOk();
         }
-        $rows ? $io->table(['Check', 'Status', 'Detail'], $rows) : $io->note('Nothing to check: LDAP is off and no mailbox is enabled.');
+        $rows ? $io->table(['Check', 'Status', 'Detail'], $rows) : $io->note('Nothing to check: LDAP is off, and no OpenID Connect provider nor domain service to check.');
 
         return $failing ? Command::FAILURE : Command::SUCCESS;
     }

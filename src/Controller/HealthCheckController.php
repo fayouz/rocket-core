@@ -17,7 +17,7 @@ final class HealthCheckController extends AbstractController
     #[Route('/api/health/check', name: 'api_health_check', methods: ['POST'])]
     public function __invoke(HealthChecker $checker, PlatformHealth $health): JsonResponse
     {
-        $checker->checkAll();
+        $checker->checkAll(wait: true);
 
         return $this->json($health->check());
     }

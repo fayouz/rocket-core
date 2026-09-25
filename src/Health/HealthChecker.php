@@ -47,10 +47,14 @@ class HealthChecker
     }
 
     /** @return bool false when checks are already running elsewhere */
-    public function checkAll(): bool
+    /**
+     * @param bool $wait on demand (dashboard, command): wait for a check already running (e.g. the worker's, at start)
+     *                   instead of returning at once with the previous results
+     */
+    public function checkAll(bool $wait = false): bool
     {
         $lock = $this->locks->createLock('app-health-checks', ttl: 600);
-        if (!$lock->acquire()) {
+        if (!$lock->acquire($wait)) {
             return false;
         }
 
