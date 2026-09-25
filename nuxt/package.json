@@ -1,0 +1,24 @@
+{
+  "name": "@rocket/core-layer",
+  "private": true,
+  "type": "module",
+  "main": "./nuxt.config.ts",
+  "scripts": {
+    "dev": "nuxt dev .playground",
+    "postinstall": "nuxt prepare .playground",
+    "typecheck": "nuxt typecheck .playground",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@nuxt/ui": "^4.11.2",
+    "nuxt": "^4.5.2",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.136",
+    "@nuxt/eslint": "^1.17.0",
+    "eslint": "^10.11.0",
+    "typescript": "^6.0.3",
+    "vue-tsc": "^3.3.11"
+  }
+}
