@@ -1,0 +1,9 @@
+parameters:
+    env(UPDATE_REPOSITORY): 'acme/rocket-app'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    Rocket\Core\Tests\Support\HttpMock: ~

@@ -1,0 +1,2 @@
+rocket_core:
+    resource: '@RocketCoreBundle/config/routes.php'

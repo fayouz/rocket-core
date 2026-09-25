@@ -1,0 +1,4 @@
+rocket_core:
+    app_name: Rocket Test
+    app_id: test
+    token_prefix: rpa_
