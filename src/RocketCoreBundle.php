@@ -49,7 +49,11 @@ final class RocketCoreBundle extends AbstractBundle
             'mapping' => ['paths' => array_values(array_filter([__DIR__.'/Entity', is_dir($appEntities) ? $appEntities : null]))],
         ]);
         $builder->prependExtensionConfig('doctrine_migrations', [
-            'migrations_paths' => ['Rocket\Core\Migrations' => \dirname(__DIR__).'/migrations'],
+            // The application's namespace first: new migrations (doctrine:migrations:diff) are written there.
+            'migrations_paths' => [
+                'DoctrineMigrations' => '%kernel.project_dir%/migrations',
+                'Rocket\Core\Migrations' => \dirname(__DIR__).'/migrations',
+            ],
             // Core and application migrations run in timestamp order, whatever their namespace.
             'services' => [Comparator::class => MigrationVersionComparator::class],
         ]);
