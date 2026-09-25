@@ -9,6 +9,20 @@ watch(() => auth.me.value, (me) => {
   if (me) loadVersion()
 }, { immediate: true })
 
+const { info: suite, isSuite } = useSuite()
+
+// Suite mode: the other applications of the suite, and the accounts managed in Rocket Auth.
+const switcher = computed(() => [
+  (suite.value?.apps ?? []).map(other => ({
+    label: other.name,
+    icon: other.icon ?? 'i-lucide-app-window',
+    to: other.url,
+    target: '_self',
+    disabled: other.id === suite.value?.app.id,
+  })),
+  suite.value?.auth ? [{ label: `Mon compte (${suite.value.auth.name})`, icon: 'i-lucide-user-cog', to: suite.value.auth.url, target: '_blank' }] : [],
+].filter(group => group.length))
+
 const items = computed<NavigationMenuItem[][]>(() => [
   [
     { label: 'Tableau de bord', icon: 'i-lucide-layout-dashboard', to: '/' },
@@ -19,7 +33,8 @@ const items = computed<NavigationMenuItem[][]>(() => [
         { label: 'Administration', type: 'label' },
         ...app.adminNavigation,
         { label: 'Utilisateurs', icon: 'i-lucide-users', to: '/users' },
-        { label: 'Serveurs d’authentification', icon: 'i-lucide-shield-check', to: '/authentication-servers' },
+        // Suite mode: sign-in is Rocket Auth's (managed from the configuration).
+        ...(isSuite.value ? [] : [{ label: 'Serveurs d’authentification', icon: 'i-lucide-shield-check', to: '/authentication-servers' }]),
         { label: 'Applications', icon: 'i-lucide-key-round', to: '/applications' },
         { label: 'Mises à jour', icon: updateAvailable.value ? 'i-lucide-circle-arrow-up' : 'i-lucide-refresh-cw', to: '/updates' },
       ]
@@ -31,7 +46,14 @@ const items = computed<NavigationMenuItem[][]>(() => [
   <UDashboardGroup>
     <UDashboardSidebar collapsible resizable>
       <template #header="{ collapsed }">
-        <div class="flex items-center gap-2 font-semibold">
+        <UDropdownMenu v-if="isSuite && switcher.length" :items="switcher" :content="{ align: 'start' }" :ui="{ content: 'min-w-56' }">
+          <UButton color="neutral" variant="ghost" class="w-full font-semibold" :square="collapsed" data-testid="app-switcher">
+            <UIcon :name="app.icon" class="size-5 text-primary" />
+            <span v-if="!collapsed" class="truncate">{{ app.name }}</span>
+            <UIcon v-if="!collapsed" name="i-lucide-chevrons-up-down" class="ms-auto size-4 text-dimmed" />
+          </UButton>
+        </UDropdownMenu>
+        <div v-else class="flex items-center gap-2 font-semibold">
           <UIcon :name="app.icon" class="size-5 text-primary" />
           <span v-if="!collapsed">{{ app.name }}</span>
         </div>

@@ -3,6 +3,7 @@ import type { LdapConfig, LdapTestResult } from '#rocket/types/api'
 
 definePageMeta({ admin: true })
 const appName = useAppConfig().rocket.name
+const { isSuite } = useSuite()
 useHead({ title: `Annuaire LDAP · ${appName}` })
 
 const api = useApi()
@@ -111,6 +112,15 @@ const dirty = computed(() => JSON.stringify({ ...form, bindPassword: '' }) !== J
     </template>
 
     <template #body>
+      <UAlert
+        v-if="isSuite"
+        icon="i-lucide-shield-check"
+        color="info"
+        variant="subtle"
+        title="Annuaire géré par Rocket Auth"
+        description="En mode suite, les comptes de l’annuaire se connectent par Rocket Auth, qui synchronise l’annuaire : la configuration ci-dessous n’est pas utilisée."
+        class="mx-auto w-full max-w-4xl"
+      />
       <form class="mx-auto flex w-full max-w-4xl flex-col gap-6" data-testid="ldap-form" @submit.prevent="save">
         <UAlert
           v-if="config?.source === 'environment'"

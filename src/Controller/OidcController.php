@@ -10,6 +10,7 @@ use Rocket\Core\Oidc\OidcException;
 use Rocket\Core\Oidc\OidcTestInput;
 use Rocket\Core\Repository\AuthenticationServerRepository;
 use Rocket\Core\Security\Roles;
+use Rocket\Core\Suite\SuiteSettings;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -26,6 +27,7 @@ final class OidcController extends AbstractController
         private readonly AuthenticationServerRepository $servers,
         private readonly OidcClient $client,
         private readonly LoggerInterface $logger,
+        private readonly SuiteSettings $suite,
     ) {
     }
 
@@ -35,6 +37,10 @@ final class OidcController extends AbstractController
     {
         $providers = [];
         foreach ($this->servers->findEnabledOidc() as $server) {
+            // Suite mode: everyone signs in through Rocket Auth.
+            if ($this->suite->isSuite() && !$server->isManaged()) {
+                continue;
+            }
             try {
                 $metadata = $this->client->discover($server);
             } catch (OidcException $e) {
@@ -59,7 +65,7 @@ final class OidcController extends AbstractController
     public function callback(#[MapRequestPayload] OidcCallbackInput $input, OidcAccountLinker $linker, JWTTokenManagerInterface $tokens): JsonResponse
     {
         $server = $this->servers->find($input->provider);
-        if (null === $server || AuthenticationServerType::Oidc !== $server->getType() || !$server->isEnabled()) {
+        if (null === $server || AuthenticationServerType::Oidc !== $server->getType() || !$server->isEnabled() || ($this->suite->isSuite() && !$server->isManaged())) {
             return $this->json(['code' => 401, 'message' => 'Unknown or disabled authentication server.'], Response::HTTP_UNAUTHORIZED);
         }
 

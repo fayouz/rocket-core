@@ -5,6 +5,7 @@ namespace Rocket\Core\Ldap;
 use Rocket\Core\Entity\AuthenticationServer;
 use Rocket\Core\Enum\AuthenticationServerType;
 use Rocket\Core\Security\SecretBox;
+use Rocket\Core\Suite\SuiteSettings;
 use Rocket\Core\Repository\AuthenticationServerRepository;
 use Rocket\Core\Settings\Settings;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,6 +28,7 @@ class LdapSettings implements ResetInterface
         private readonly SecretBox $secrets,
         private readonly EntityManagerInterface $em,
         private readonly AuthenticationServerRepository $servers,
+        private readonly SuiteSettings $suite,
         #[Autowire(env: 'bool:LDAP_ENABLED')] private readonly bool $envEnabled,
         #[Autowire(env: 'LDAP_URL')] private readonly string $envUrl,
         #[Autowire(env: 'LDAP_BASE_DN')] private readonly string $envBaseDn,
@@ -51,20 +53,29 @@ class LdapSettings implements ResetInterface
         if (null !== $this->cached) {
             return $this->cached;
         }
+        // Suite mode: the directory is Rocket Auth's business; its users sign in through it.
+        if ($this->suite->isSuite()) {
+            return $this->cached = LdapConfig::fromArray(['enabled' => false], $this->load());
+        }
 
+        return $this->cached = $this->load();
+    }
+
+    private function load(): LdapConfig
+    {
         if (null !== $server = $this->servers->findLdap()) {
-            return $this->cached = $this->fromEntity($server);
+            return $this->fromEntity($server);
         }
 
         $stored = $this->settings->get(self::KEY);
         if (!\is_array($stored)) {
-            return $this->cached = $this->fromEnvironment();
+            return $this->fromEnvironment();
         }
         if (isset($stored['bindPassword']) && '' !== $stored['bindPassword']) {
             $stored['bindPassword'] = $this->secrets->decrypt($stored['bindPassword']);
         }
 
-        return $this->cached = LdapConfig::fromArray($stored);
+        return LdapConfig::fromArray($stored);
     }
 
     /** Saved from the administration at least once (else: environment variables). */

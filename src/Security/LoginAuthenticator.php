@@ -5,6 +5,7 @@ namespace Rocket\Core\Security;
 use Rocket\Core\Entity\User;
 use Rocket\Core\Enum\UserSource;
 use Rocket\Core\Ldap\UserDirectoryInterface;
+use Rocket\Core\Suite\SuiteSettings;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Http\Authentication\AuthenticationSuccessHandler;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,6 +30,7 @@ final class LoginAuthenticator extends AbstractAuthenticator
         private readonly UserPasswordHasherInterface $hasher,
         private readonly UserDirectoryInterface $directory,
         private readonly AuthenticationSuccessHandler $successHandler,
+        private readonly SuiteSettings $suite,
     ) {
     }
 
@@ -43,6 +45,10 @@ final class LoginAuthenticator extends AbstractAuthenticator
             $payload = $request->toArray();
         } catch (\Throwable) {
             throw new CustomUserMessageAuthenticationException('Invalid JSON payload.');
+        }
+
+        if (!$this->suite->isLocalLoginAllowed()) {
+            throw new CustomUserMessageAuthenticationException('Sign in with Rocket Auth: local sign-in is disabled in the suite.');
         }
 
         $email = $payload['email'] ?? null;

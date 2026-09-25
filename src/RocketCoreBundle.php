@@ -103,6 +103,13 @@ final class RocketCoreBundle extends AbstractBundle
         'UPDATE_SCRIPT' => '%kernel.project_dir%/../deploy/update.sh',
         'UPDATE_RESTART_COMMAND' => '',
         'UPDATE_SCRIPT_TIMEOUT' => '1800',
+        // Suite mode (see Rocket\Core\Suite\SuiteSettings): empty ROCKET_AUTH_URL means standalone.
+        'ROCKET_AUTH_URL' => '',
+        'ROCKET_AUTH_INTERNAL_URL' => '',
+        'ROCKET_AUTH_CLIENT_ID' => '',
+        'ROCKET_AUTH_CLIENT_SECRET' => '',
+        'ROCKET_AUTH_ADMIN_GROUP' => 'rocket-admins',
+        'ROCKET_LOCAL_LOGIN' => '0',
         'DEMO_MODE' => '0',
         'DEMO_APP_TOKEN' => '',
         'DEMO_SSO_ISSUER' => '',

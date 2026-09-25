@@ -88,12 +88,15 @@ async function syncLdap() {
   }
 }
 
+const { info: suite } = useSuite()
 const quickActions = computed(() => [
   ...(data.value?.quickActions ?? []),
   ...(isAdmin.value
     ? [
         { label: 'Nouvelle application', icon: 'i-lucide-plug', to: '/applications?new=1', tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
-        { label: 'Nouvel utilisateur', icon: 'i-lucide-user-plus', to: '/users?new=1', tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+        suite.value?.auth
+          ? { label: `Comptes (${suite.value.auth.name})`, icon: 'i-lucide-users', to: suite.value.auth.url, tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' }
+          : { label: 'Nouvel utilisateur', icon: 'i-lucide-user-plus', to: '/users?new=1', tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
       ]
     : []),
 ].slice(0, 4))

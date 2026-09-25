@@ -8,9 +8,9 @@ export function useAppVersion() {
   const config = useRuntimeConfig()
   const auth = useAuth()
   const api = useApi()
-  const apiVersion = useState<AppVersionInfo | null>('rp_api_version', () => null)
-  const update = useState<UpdateStatus | null>('rp_update_status', () => null)
-  const loaded = useState('rp_version_loaded', () => false)
+  const apiVersion = useState<AppVersionInfo | null>('rocket_api_version', () => null)
+  const update = useState<UpdateStatus | null>('rocket_update_status', () => null)
+  const loaded = useState('rocket_version_loaded', () => false)
 
   const frontVersion = computed(() => formatVersion(String(config.public.appVersion ?? '')))
   const version = computed(() => apiVersion.value?.version ?? frontVersion.value)

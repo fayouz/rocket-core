@@ -10,6 +10,8 @@ export default defineAppConfig({
     },
   },
   rocket: {
+    // Identifier of the application (cookie of its session…), e.g. 'print'.
+    id: 'rocket',
     name: 'Rocket',
     icon: 'i-lucide-rocket',
     // Login page subtitle.

@@ -8,6 +8,7 @@ useHead({ title: `Utilisateurs · ${appName}` })
 
 const api = useApi()
 const auth = useAuth()
+const { info: suite, isSuite } = useSuite()
 const toast = useToast()
 const UBadge = resolveComponent('UBadge')
 const USwitch = resolveComponent('USwitch')
@@ -159,14 +160,25 @@ async function syncLdap(dryRun: boolean) {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton icon="i-lucide-flask-conical" label="Simuler la synchro" color="neutral" variant="ghost" :loading="syncing" @click="syncLdap(true)" />
-          <UButton icon="i-lucide-refresh-cw" label="Synchroniser LDAP" color="neutral" variant="outline" :loading="syncing" @click="syncLdap(false)" />
-          <UButton icon="i-lucide-user-plus" label="Utilisateur local" @click="createOpen = true" />
+          <UButton v-if="isSuite && suite?.auth" icon="i-lucide-external-link" :label="`Gérer dans ${suite.auth.name}`" :to="suite.auth.url" target="_blank" />
+          <template v-else>
+            <UButton icon="i-lucide-flask-conical" label="Simuler la synchro" color="neutral" variant="ghost" :loading="syncing" @click="syncLdap(true)" />
+            <UButton icon="i-lucide-refresh-cw" label="Synchroniser LDAP" color="neutral" variant="outline" :loading="syncing" @click="syncLdap(false)" />
+            <UButton icon="i-lucide-user-plus" label="Utilisateur local" @click="createOpen = true" />
+          </template>
         </template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
+      <UAlert
+        v-if="isSuite"
+        icon="i-lucide-shield-check"
+        color="info"
+        variant="subtle"
+        :title="`Comptes gérés dans ${suite?.auth?.name}`"
+        description="Les personnes obtiennent un compte ici à leur première connexion ; leurs groupes, dont le rôle administrateur, viennent de Rocket Auth. Vous pouvez désactiver un compte pour cette application."
+      />
       <UInput v-model="search" icon="i-lucide-search" placeholder="Rechercher…" class="max-w-sm" />
       <UTable :data="filtered" :columns="columns" :loading="status === 'pending'" empty="Aucun utilisateur." />
 

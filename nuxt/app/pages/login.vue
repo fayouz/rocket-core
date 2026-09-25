@@ -5,6 +5,7 @@ useHead({ title: `Connexion · ${app.name}` })
 
 const auth = useAuth()
 const route = useRoute()
+const { info: suite, isSuite } = useSuite()
 const state = reactive({ email: '', password: '' })
 const error = ref<string | null>(null)
 const loading = ref(false)
@@ -25,6 +26,16 @@ async function signInWith(provider: AuthProvider) {
   redirecting.value = provider.id
   await startOidcSignIn(provider, redirectTarget())
 }
+
+// Suite mode: Rocket Auth signs everyone in. The page goes there directly, unless the person just logged out
+// or asked for the emergency local sign-in (?local=1, when ROCKET_LOCAL_LOGIN=1).
+const suiteProvider = computed(() => providers.value.find(p => p.id === suite.value?.auth?.providerId) ?? null)
+const showLocalForm = computed(() => !isSuite.value || (!!suite.value?.localLogin && route.query.local === '1'))
+onMounted(() => {
+  if (isSuite.value && suiteProvider.value && !route.query.logged_out && route.query.local !== '1') {
+    signInWith(suiteProvider.value)
+  }
+})
 
 async function submit() {
   loading.value = true
@@ -55,7 +66,26 @@ async function submit() {
         </p>
       </template>
 
-      <div v-if="providers.length" class="mb-4 flex flex-col gap-2">
+      <template v-if="isSuite">
+        <UAlert v-if="route.query.logged_out" color="success" variant="subtle" icon="i-lucide-log-out" description="Vous êtes déconnecté." class="mb-4" />
+        <UButton
+          v-if="suiteProvider"
+          :label="`Se connecter avec ${suite?.auth?.name}`"
+          icon="i-lucide-shield-check"
+          size="lg"
+          block
+          :loading="redirecting === suiteProvider.id"
+          @click="signInWith(suiteProvider)"
+        />
+        <UAlert v-else color="warning" variant="subtle" icon="i-lucide-cloud-off" :description="`${suite?.auth?.name ?? 'Rocket Auth'} est injoignable pour le moment. Réessayez dans un instant.`" />
+        <p v-if="suite?.localLogin && !showLocalForm" class="mt-4 text-center text-xs text-muted">
+          <ULink :to="{ path: '/login', query: { ...route.query, local: '1' } }" class="underline">
+            Accès de secours (mot de passe local)
+          </ULink>
+        </p>
+      </template>
+
+      <div v-else-if="providers.length" class="mb-4 flex flex-col gap-2">
         <UButton
           v-for="provider in providers"
           :key="provider.id"
@@ -70,7 +100,7 @@ async function submit() {
         <USeparator label="ou" class="my-2" />
       </div>
 
-      <form class="flex flex-col gap-4" @submit.prevent="submit">
+      <form v-if="showLocalForm" class="flex flex-col gap-4" :class="{ 'mt-4': isSuite }" @submit.prevent="submit">
         <UFormField label="Email" required>
           <UInput v-model="state.email" type="email" autocomplete="username" class="w-full" autofocus />
         </UFormField>

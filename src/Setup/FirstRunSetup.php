@@ -2,6 +2,7 @@
 
 namespace Rocket\Core\Setup;
 
+use Rocket\Core\Suite\SuiteSettings;
 use Rocket\Core\Entity\User;
 use Rocket\Core\Security\Roles;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,11 +21,17 @@ final class FirstRunSetup
         private readonly EntityManagerInterface $em,
         private readonly UserPasswordHasherInterface $hasher,
         #[Autowire(env: 'SETUP_TOKEN')] private readonly string $setupToken,
+        private readonly ?SuiteSettings $suite = null,
     ) {
     }
 
     public function isRequired(): bool
     {
+        // Suite mode: administrators come from Rocket Auth (its admin group).
+        if ($this->suite?->isSuite()) {
+            return false;
+        }
+
         return 0 === (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM "user"');
     }
 

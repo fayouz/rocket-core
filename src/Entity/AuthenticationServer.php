@@ -22,7 +22,14 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 #[ORM\Entity(repositoryClass: AuthenticationServerRepository::class)]
 #[ApiResource(
-    operations: [new GetCollection(), new Get(), new Post(processor: AuthenticationServerProcessor::class), new Patch(processor: AuthenticationServerProcessor::class), new Delete(processor: AuthenticationServerDeleteProcessor::class)],
+    operations: [
+        new GetCollection(),
+        new Get(),
+        new Post(processor: AuthenticationServerProcessor::class),
+        // The Rocket Auth provider of the suite mode is managed by the configuration (ROCKET_AUTH_*), not by hand.
+        new Patch(security: "is_granted('ROLE_ADMIN') and !object.isManaged()", securityMessage: 'This server is managed by the suite configuration (ROCKET_AUTH_*).', processor: AuthenticationServerProcessor::class),
+        new Delete(security: "is_granted('ROLE_ADMIN') and !object.isManaged()", securityMessage: 'This server is managed by the suite configuration (ROCKET_AUTH_*).', processor: AuthenticationServerDeleteProcessor::class),
+    ],
     normalizationContext: ['groups' => ['authentication_server:read', 'tracking']],
     denormalizationContext: ['groups' => ['authentication_server:write']],
     security: "is_granted('ROLE_ADMIN')",
@@ -82,6 +89,11 @@ class AuthenticationServer
     #[ORM\Column(options: ['default' => false])]
     #[Groups(['authentication_server:read', 'authentication_server:write'])]
     private bool $linkExistingAccounts = false;
+
+    /** Declared by the suite mode (Rocket Auth, from ROCKET_AUTH_*): read-only in the administration. */
+    #[ORM\Column(options: ['default' => false])]
+    #[Groups(['authentication_server:read'])]
+    private bool $managed = false;
 
     #[ORM\Column]
     private bool $startTls = false;
@@ -349,6 +361,18 @@ class AuthenticationServer
     public function setLinkExistingAccounts(bool $linkExistingAccounts): static
     {
         $this->linkExistingAccounts = $linkExistingAccounts;
+
+        return $this;
+    }
+
+    public function isManaged(): bool
+    {
+        return $this->managed;
+    }
+
+    public function setManaged(bool $managed): static
+    {
+        $this->managed = $managed;
 
         return $this;
     }

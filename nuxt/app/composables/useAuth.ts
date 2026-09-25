@@ -1,11 +1,12 @@
 import type { Me } from '#rocket/types/api'
 
-const TOKEN_COOKIE = 'rp_token'
 const TOKEN_TTL_SECONDS = 3600
 
 export function useAuth() {
   const config = useRuntimeConfig()
-  const token = useState<string | null>('rp_token', () => useCookie<string | null>(TOKEN_COOKIE).value ?? null)
+  // One cookie per application: applications of the suite may share a host (cookies ignore ports).
+  const TOKEN_COOKIE = `rocket_${useAppConfig().rocket.id}_token`
+  const token = useState<string | null>('rocket_token', () => useCookie<string | null>(TOKEN_COOKIE).value ?? null)
 
   // Written synchronously: a useCookie ref only persists through a watcher, which is lost
   // when the component that set it unmounts right away (e.g. navigating after login).
@@ -16,7 +17,7 @@ export function useAuth() {
       ? `${TOKEN_COOKIE}=${encodeURIComponent(value)}; Path=/; Max-Age=${TOKEN_TTL_SECONDS}; SameSite=Strict${secure}`
       : `${TOKEN_COOKIE}=; Path=/; Max-Age=0; SameSite=Strict${secure}`
   }
-  const me = useState<Me | null>('rp_me', () => null)
+  const me = useState<Me | null>('rocket_me', () => null)
 
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => me.value?.roles.includes('ROLE_ADMIN') ?? false)
@@ -47,9 +48,16 @@ export function useAuth() {
     return me.value
   }
 
+  /** Ends the session; in suite mode, also the Rocket Auth session (RP-initiated logout), back on /login. */
   async function logout() {
     setToken(null)
     me.value = null
+    const logoutUrl = useSuite().info.value?.auth?.logoutUrl
+    if (logoutUrl) {
+      const back = `${window.location.origin}/login?logged_out=1`
+      window.location.assign(`${logoutUrl}&post_logout_redirect_uri=${encodeURIComponent(back)}`)
+      return
+    }
     await navigateTo('/login')
   }
 

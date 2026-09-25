@@ -6,6 +6,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (to.path === '/auth/callback') return
 
   const auth = useAuth()
+  // Standalone or suite mode: sign-in, menu and logout depend on it.
+  await useSuite().load()
 
   // First run: until an administrator exists, every page leads to the setup.
   if (!auth.token.value) {

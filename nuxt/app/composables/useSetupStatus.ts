@@ -7,7 +7,7 @@ export interface SetupStatus {
 
 /** First-run setup status, fetched once per page load (until the setup is done). */
 export async function useSetupStatus(): Promise<SetupStatus> {
-  const status = useState<SetupStatus | null>('rp_setup', () => null)
+  const status = useState<SetupStatus | null>('rocket_setup', () => null)
   if (!status.value) {
     try {
       status.value = await $fetch<SetupStatus>('/api/setup', { baseURL: useRuntimeConfig().public.apiBase, headers: { Accept: 'application/json' } })
@@ -21,5 +21,5 @@ export async function useSetupStatus(): Promise<SetupStatus> {
 }
 
 export function markSetupDone() {
-  useState<SetupStatus | null>('rp_setup').value = { required: false, tokenRequired: false }
+  useState<SetupStatus | null>('rocket_setup').value = { required: false, tokenRequired: false }
 }

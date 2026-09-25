@@ -277,3 +277,22 @@ export interface UpdateStatus {
   run: UpdateRun | null
   history: UpdateRun[]
 }
+
+/** An application of the suite, published by Rocket Auth (application switcher). */
+export interface SuiteApp {
+  id: string
+  name: string
+  url: string
+  icon: string | null
+  description: string | null
+}
+
+/** How this application signs people in (GET /api/suite). */
+export interface SuiteInfo {
+  mode: 'standalone' | 'suite'
+  app: { id: string, name: string }
+  /** Local passwords accepted: always standalone, emergency access only in suite mode. */
+  localLogin: boolean
+  auth: { name: string, url: string, providerId: string, logoutUrl: string | null } | null
+  apps: SuiteApp[]
+}
