@@ -20,6 +20,7 @@ export interface EmbedContext {
 let pendingRenewal: Promise<void> | null = null
 
 export function useEmbedBridge() {
+  const { t } = useRocketI18n()
   const source = `rocket-${useAppConfig().rocket.id}`
   const allowedOrigins = useState<string[]>('rocket_embed_origins', () => [])
   const hostOrigin = useState<string | null>('rocket_embed_host', () => null)
@@ -99,14 +100,14 @@ export function useEmbedBridge() {
    * Keeps the host informed of the page's height (resize) and says when it is loaded.
    */
   async function connect(applicationId: string): Promise<EmbedContext> {
-    if (!applicationId) throw new Error('Paramètre "app" manquant.')
+    if (!applicationId) throw new Error(t('embed.missingApp'))
 
     const policy = await $fetch<{ frameAncestors: string[] }>('/api/embed/frame-policy', {
       baseURL: useRuntimeConfig().public.apiBase,
       query: { app: applicationId },
     })
     allowedOrigins.value = policy.frameAncestors
-    if (window.parent === window) throw new Error('Cette page doit être intégrée dans une application autorisée.')
+    if (window.parent === window) throw new Error(t('embed.notEmbedded'))
 
     const fragmentToken = new URLSearchParams(window.location.hash.slice(1)).get('token')
     if (fragmentToken) {
@@ -119,7 +120,7 @@ export function useEmbedBridge() {
     }
 
     const context = await useApi()<EmbedContext>('/api/embed/context')
-    if (context.application.id !== applicationId) throw new Error('Le jeton ne correspond pas à cette application.')
+    if (context.application.id !== applicationId) throw new Error(t('embed.wrongApp'))
 
     new ResizeObserver(() => notify('resize', { height: document.documentElement.scrollHeight })).observe(document.body)
     notify('loaded')

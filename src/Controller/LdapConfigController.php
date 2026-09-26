@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Controller;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Rocket\Core\Ldap\DirectoryUser;
 use Rocket\Core\Ldap\LdapConfig;
 use Rocket\Core\Ldap\LdapConfigInput;
@@ -19,7 +21,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted(Roles::ADMIN)]
 final class LdapConfigController extends AbstractController
 {
-    public function __construct(private readonly LdapSettings $settings)
+    public function __construct(private readonly LdapSettings $settings, private readonly ?CoreMessages $messages = null)
     {
     }
 
@@ -67,7 +69,7 @@ final class LdapConfigController extends AbstractController
 
         return $this->json([
             'ok' => true,
-            'message' => \sprintf('%d utilisateur(s) trouvé(s) avec une adresse email.', $result['count']),
+            'message' => $this->trans('ldap.found', ['count' => $result['count']]),
             'count' => $result['count'],
             'sample' => array_map(static fn (DirectoryUser $u) => [
                 'dn' => $u->dn, 'email' => $u->email, 'firstName' => $u->firstName, 'lastName' => $u->lastName, 'admin' => $u->admin,
@@ -82,5 +84,11 @@ final class LdapConfigController extends AbstractController
             'source' => $this->settings->isStored() ? 'database' : 'environment',
             'defaults' => ['attributes' => LdapConfig::DEFAULT_ATTRIBUTES],
         ];
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

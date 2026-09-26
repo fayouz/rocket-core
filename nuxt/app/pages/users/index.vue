@@ -4,7 +4,8 @@ import type { User } from '#rocket/types/api'
 
 definePageMeta({ admin: true })
 const appName = useAppConfig().rocket.name
-useHead({ title: `Utilisateurs · ${appName}` })
+const { t } = useRocketI18n()
+useHead({ title: () => t('users.pageTitle', { name: appName }) })
 
 const api = useApi()
 const auth = useAuth()
@@ -33,7 +34,7 @@ async function patch(user: User, body: Partial<User> & { plainPassword?: string 
     return true
   }
   catch (error) {
-    toast.add({ title: 'Mise à jour impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('users.updateFailed'), description: apiErrorMessage(error), color: 'error' })
     return false
   }
 }
@@ -43,26 +44,26 @@ function toggleAdmin(user: User, admin: boolean) {
   return patch(user, { roles: admin ? [...roles, 'ROLE_ADMIN'] : roles })
 }
 
-const columns: TableColumn<User>[] = [
+const columns = computed<TableColumn<User>[]>(() => [
   {
     accessorKey: 'displayName',
-    header: 'Utilisateur',
+    header: t('users.columnUser'),
     cell: ({ row }) => h('div', [h('p', { class: 'font-medium' }, row.original.displayName), h('p', { class: 'text-sm text-muted' }, row.original.email)]),
   },
   {
     accessorKey: 'source',
-    header: 'Source',
+    header: t('users.columnSource'),
     cell: ({ row }) => h(UBadge, {
       variant: 'subtle',
       color: row.original.source === 'ldap' ? 'info' : row.original.source === 'oidc' ? 'primary' : 'neutral',
       label: row.original.source === 'ldap'
-        ? (row.original.authenticationServerName ?? 'LDAP')
-        : row.original.source === 'oidc' ? (row.original.authenticationServerName ?? 'SSO') : 'Local',
+        ? (row.original.authenticationServerName ?? t('users.sourceLdapFallback'))
+        : row.original.source === 'oidc' ? (row.original.authenticationServerName ?? t('users.sourceOidcFallback')) : t('users.sourceLocal'),
     }),
   },
   {
     id: 'admin',
-    header: 'Admin',
+    header: t('users.columnAdmin'),
     cell: ({ row }) => h(USwitch, {
       'modelValue': row.original.roles.includes('ROLE_ADMIN'),
       'disabled': row.original.id === auth.me.value?.user?.id,
@@ -71,25 +72,25 @@ const columns: TableColumn<User>[] = [
   },
   {
     accessorKey: 'enabled',
-    header: 'Actif',
+    header: t('users.columnActive'),
     cell: ({ row }) => h('div', { class: 'flex items-center gap-2' }, [
       h(UBadge, {
         variant: 'subtle',
         color: row.original.enabled ? 'success' : 'neutral',
-        label: row.original.enabled ? 'Actif' : 'Désactivé',
+        label: row.original.enabled ? t('common.active') : t('common.disabled'),
       }),
       h(USwitch, {
         'modelValue': row.original.enabled,
         'disabled': row.original.id === auth.me.value?.user?.id,
-        'aria-label': row.original.enabled ? 'Désactiver' : 'Activer',
+        'aria-label': row.original.enabled ? t('users.disable') : t('users.enable'),
         'onUpdate:modelValue': (value: boolean) => patch(row.original, { enabled: value }),
       }),
     ]),
   },
-  { accessorKey: 'ldapSyncedAt', header: 'Synchro LDAP', cell: ({ row }) => formatDate(row.original.ldapSyncedAt) },
+  { accessorKey: 'ldapSyncedAt', header: t('users.columnLdapSync'), cell: ({ row }) => formatDate(row.original.ldapSyncedAt) },
   {
     accessorKey: 'groups',
-    header: 'Groupes',
+    header: t('users.columnGroups'),
     cell: ({ row }) => h('div', { class: 'flex flex-wrap gap-1' }, row.original.groups.length
       ? row.original.groups.map(group => h(UBadge, { label: group, variant: 'outline', color: 'neutral', size: 'sm' }))
       : [h('span', { class: 'text-muted' }, '—')]),
@@ -101,14 +102,14 @@ const columns: TableColumn<User>[] = [
       ...rowActions.map(action => h(action, { user: row.original, onRefresh: () => refresh() })),
       // Directory accounts get their groups from LDAP, and in the suite everyone gets them from Rocket Auth.
       row.original.source !== 'ldap' && !isSuite.value
-        ? h(UButton, { 'icon': 'i-lucide-users-round', 'color': 'neutral', 'variant': 'ghost', 'aria-label': 'Groupes', 'data-testid': 'edit-groups', 'onClick': () => editGroups(row.original) })
+        ? h(UButton, { 'icon': 'i-lucide-users-round', 'color': 'neutral', 'variant': 'ghost', 'aria-label': t('users.editGroups'), 'data-testid': 'edit-groups', 'onClick': () => editGroups(row.original) })
         : null,
       row.original.source === 'local'
-        ? h(UButton, { 'icon': 'i-lucide-key', 'color': 'neutral', 'variant': 'ghost', 'aria-label': 'Changer le mot de passe', 'onClick': () => (passwordFor.value = row.original) })
+        ? h(UButton, { 'icon': 'i-lucide-key', 'color': 'neutral', 'variant': 'ghost', 'aria-label': t('users.changePassword'), 'onClick': () => (passwordFor.value = row.original) })
         : null,
     ]),
   },
-]
+])
 
 // Create a local user
 // Opened directly by "Nouvel utilisateur" on the dashboard.
@@ -139,11 +140,11 @@ async function createUser() {
     })
     Object.assign(newUser, { email: '', firstName: '', lastName: '', plainPassword: '', admin: false })
     createOpen.value = false
-    toast.add({ title: 'Utilisateur créé', color: 'success' })
+    toast.add({ title: t('users.userCreated'), color: 'success' })
     await refresh()
   }
   catch (error) {
-    toast.add({ title: 'Création impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('users.createFailed'), description: apiErrorMessage(error), color: 'error' })
   }
 }
 
@@ -152,7 +153,7 @@ const passwordFor = ref<User | null>(null)
 const newPassword = ref('')
 async function changePassword() {
   if (passwordFor.value && await patch(passwordFor.value, { plainPassword: newPassword.value })) {
-    toast.add({ title: 'Mot de passe modifié', color: 'success' })
+    toast.add({ title: t('users.passwordChanged'), color: 'success' })
     passwordFor.value = null
     newPassword.value = ''
   }
@@ -165,16 +166,16 @@ async function syncLdap(dryRun: boolean) {
   try {
     const report = await api<{ created: number, updated: number, disabled: number, conflicts: string[] }>('/api/ldap/sync', { method: 'POST', query: { dryRun } })
     toast.add({
-      title: dryRun ? 'Simulation de synchronisation' : 'Synchronisation LDAP terminée',
-      description: `${report.created} créé(s), ${report.updated} mis à jour, ${report.disabled} désactivé(s)`
-        + (report.conflicts.length ? ` · comptes locaux ignorés : ${report.conflicts.join(', ')}` : ''),
+      title: dryRun ? t('users.syncingDryRun') : t('users.syncingDone'),
+      description: t('users.syncReport', { created: report.created, updated: report.updated, disabled: report.disabled })
+        + (report.conflicts.length ? t('users.syncReportConflicts', { names: report.conflicts.join(', ') }) : ''),
       color: 'success',
       duration: 8000,
     })
     if (!dryRun) await refresh()
   }
   catch (error) {
-    toast.add({ title: 'Synchronisation impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('users.syncFailed'), description: apiErrorMessage(error), color: 'error' })
   }
   finally {
     syncing.value = false
@@ -185,16 +186,16 @@ async function syncLdap(dryRun: boolean) {
 <template>
   <UDashboardPanel id="users">
     <template #header>
-      <UDashboardNavbar title="Utilisateurs">
+      <UDashboardNavbar :title="t('users.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton v-if="isSuite && suite?.auth" icon="i-lucide-external-link" :label="`Gérer dans ${suite.auth.name}`" :to="suite.auth.accountUrl" target="_blank" />
+          <UButton v-if="isSuite && suite?.auth" icon="i-lucide-external-link" :label="t('users.manageIn', { name: suite.auth.name })" :to="suite.auth.accountUrl" target="_blank" />
           <template v-else>
-            <UButton icon="i-lucide-flask-conical" label="Simuler la synchro" color="neutral" variant="ghost" :loading="syncing" @click="syncLdap(true)" />
-            <UButton icon="i-lucide-refresh-cw" label="Synchroniser LDAP" color="neutral" variant="outline" :loading="syncing" @click="syncLdap(false)" />
-            <UButton icon="i-lucide-user-plus" label="Utilisateur local" @click="createOpen = true" />
+            <UButton icon="i-lucide-flask-conical" :label="t('users.simulateSync')" color="neutral" variant="ghost" :loading="syncing" @click="syncLdap(true)" />
+            <UButton icon="i-lucide-refresh-cw" :label="t('users.syncLdap')" color="neutral" variant="outline" :loading="syncing" @click="syncLdap(false)" />
+            <UButton icon="i-lucide-user-plus" :label="t('users.localUser')" @click="createOpen = true" />
           </template>
         </template>
       </UDashboardNavbar>
@@ -206,71 +207,71 @@ async function syncLdap(dryRun: boolean) {
         icon="i-lucide-shield-check"
         color="info"
         variant="subtle"
-        :title="`Comptes gérés dans ${suite?.auth?.name}`"
-        description="Les personnes obtiennent un compte ici à leur première connexion ; leurs groupes, dont le rôle administrateur, viennent de Rocket Auth. Vous pouvez désactiver un compte pour cette application."
+        :title="t('users.suiteAccountsTitle', { name: suite?.auth?.name })"
+        :description="t('users.suiteAccountsDescription')"
       />
-      <UInput v-model="search" icon="i-lucide-search" placeholder="Rechercher…" class="max-w-sm" />
-      <UTable :data="filtered" :columns="columns" :loading="status === 'pending'" empty="Aucun utilisateur." />
+      <UInput v-model="search" icon="i-lucide-search" :placeholder="`${t('common.search')}…`" class="max-w-sm" />
+      <UTable :data="filtered" :columns="columns" :loading="status === 'pending'" :empty="t('users.empty')" />
 
-      <UModal v-model:open="createOpen" title="Nouvel utilisateur local">
+      <UModal v-model:open="createOpen" :title="t('users.newUserTitle')">
         <template #body>
           <form id="create-user" class="flex flex-col gap-3" @submit.prevent="createUser">
-            <UFormField label="Email" required>
+            <UFormField :label="t('common.email')" required>
               <UInput v-model="newUser.email" type="email" class="w-full" />
             </UFormField>
             <div class="grid grid-cols-2 gap-3">
-              <UFormField label="Prénom">
+              <UFormField :label="t('common.firstName')">
                 <UInput v-model="newUser.firstName" class="w-full" />
               </UFormField>
-              <UFormField label="Nom">
+              <UFormField :label="t('common.lastName')">
                 <UInput v-model="newUser.lastName" class="w-full" />
               </UFormField>
             </div>
-            <UFormField label="Mot de passe" hint="12 caractères minimum" required>
+            <UFormField :label="t('common.password')" :hint="t('users.passwordHint')" required>
               <UInput v-model="newUser.plainPassword" type="password" autocomplete="new-password" class="w-full" />
             </UFormField>
-            <USwitch v-model="newUser.admin" label="Administrateur" />
+            <USwitch v-model="newUser.admin" :label="t('users.administrator')" />
           </form>
         </template>
         <template #footer>
           <div class="flex w-full justify-end gap-2">
-            <UButton label="Annuler" color="neutral" variant="ghost" @click="createOpen = false" />
-            <UButton type="submit" form="create-user" label="Créer" />
+            <UButton :label="t('common.cancel')" color="neutral" variant="ghost" @click="createOpen = false" />
+            <UButton type="submit" form="create-user" :label="t('common.create')" />
           </div>
         </template>
       </UModal>
 
       <UModal
         :open="passwordFor !== null"
-        :title="`Nouveau mot de passe pour ${passwordFor?.email}`"
+        :title="t('users.newPasswordTitle', { email: passwordFor?.email })"
         @update:open="(value: boolean) => { if (!value) passwordFor = null }"
       >
         <template #body>
-          <UFormField label="Mot de passe" hint="12 caractères minimum">
+          <UFormField :label="t('common.password')" :hint="t('users.passwordHint')">
             <UInput v-model="newPassword" type="password" autocomplete="new-password" class="w-full" />
           </UFormField>
         </template>
         <template #footer>
           <div class="flex w-full justify-end gap-2">
-            <UButton label="Annuler" color="neutral" variant="ghost" @click="passwordFor = null" />
-            <UButton label="Enregistrer" :disabled="newPassword.length < 12" @click="changePassword" />
+            <UButton :label="t('common.cancel')" color="neutral" variant="ghost" @click="passwordFor = null" />
+            <UButton :label="t('common.save')" :disabled="newPassword.length < 12" @click="changePassword" />
           </div>
         </template>
       </UModal>
 
       <UModal
         :open="groupsFor !== null"
-        :title="`Groupes de ${groupsFor?.displayName}`"
-        description="Par exemple pour l’administration (groupe de LDAP_ADMIN_GROUP_DN) ou, dans Rocket Auth, transmis aux applications (revendication groups)."
+        :title="t('users.groupsTitle', { name: groupsFor?.displayName })"
+        :description="t('users.groupsDescription')"
         @update:open="(value: boolean) => { if (!value) groupsFor = null }"
       >
         <template #body>
-          <UInputTags v-model="groups" add-on-blur add-on-paste placeholder="rocket-admins" class="w-full" data-testid="groups-input" />
+          <UInputTags v-model="groups" add-on-blur add-on-paste :placeholder="t('users.groupsPlaceholder')" class="w-full" data-testid="groups-input" />
         </template>
         <template #footer>
           <div class="flex w-full justify-end gap-2">
-            <UButton label="Annuler" color="neutral" variant="ghost" @click="groupsFor = null" />
-            <UButton label="Enregistrer" @click="saveGroups" />
+            <UButton :label="t('common.cancel')" color="neutral" variant="ghost" @click="groupsFor = null" />
+            <UButton :label="t('common.save')" @click="saveGroups" />
           </div>
         </template>
       </UModal>

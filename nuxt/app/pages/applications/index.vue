@@ -10,7 +10,8 @@ const embed = useAppConfig().rocket.embed
 // Suite mode: other bricks call with an access token of Rocket Auth, linked here by their OAuth client ID.
 const { isSuite, load: loadSuite } = useSuite()
 await loadSuite()
-useHead({ title: `Applications · ${appName}` })
+const { t } = useRocketI18n()
+useHead({ title: () => t('applications.pageTitle', { name: appName }) })
 
 const api = useApi()
 const toast = useToast()
@@ -25,14 +26,14 @@ const extensions = useRocketExtensions('applications')
 const rowActions = resolveRocketComponents(extensions.rowActions)
 const formSections = resolveRocketComponents(extensions.formSections)
 const tokenExample = resolveRocketComponent(extensions.tokenExample)
-const help = extensions.help || "Une application s'authentifie avec son jeton (Authorization: Bearer <jeton>). Si l'impersonation est autorisée, l'en-tête X-Impersonate-User lui permet d'agir en tant qu'un utilisateur, jamais avec le rôle administrateur. Sans impersonation, elle peut seulement s'identifier (GET /api/me)."
+const help = extensions.help || t('applications.defaultHelp')
 
 const { data: applications, status, refresh } = await useAsyncData('applications', () => api<Application[]>('/api/applications'), { default: () => [] })
 
 // Colors of its embedded pages (bricks with embed only); 'project': the project's palette.
 const { data: palettes } = await useAsyncData('applications-palettes', () => embed ? api<ColorPalette[]>('/api/color_palettes') : Promise.resolve([]), { default: () => [] })
 const paletteItems = computed(() => [
-  { label: 'Palette du projet', value: 'project' },
+  { label: t('applications.paletteProjectItem'), value: 'project' },
   ...palettes.value.map(palette => ({ label: palette.name, value: `/api/color_palettes/${palette.id}` })),
 ])
 
@@ -42,49 +43,49 @@ async function patch(application: Application, body: Record<string, unknown>) {
     return true
   }
   catch (error) {
-    toast.add({ title: 'Mise à jour impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('applications.updateFailed'), description: apiErrorMessage(error), color: 'error' })
     return false
   }
 }
 
-const columns: TableColumn<Application>[] = [
+const columns = computed<TableColumn<Application>[]>(() => [
   {
     accessorKey: 'name',
-    header: 'Application',
+    header: t('applications.columnApplication'),
     cell: ({ row }) => h('div', [
       h('p', { class: 'font-medium' }, row.original.name),
       h('p', { class: 'font-mono text-xs text-muted' }, `${row.original.tokenHint}…`),
     ]),
   },
-  ...(isSuite.value ? [{ accessorKey: 'oauthClientId', header: 'Client Rocket Auth', cell: ({ row }) => row.original.oauthClientId ? h('span', { class: 'font-mono text-sm' }, row.original.oauthClientId) : '—' }] as TableColumn<Application>[] : []),
+  ...(isSuite.value ? [{ accessorKey: 'oauthClientId', header: t('applications.columnOauthClient'), cell: ({ row }) => row.original.oauthClientId ? h('span', { class: 'font-mono text-sm' }, row.original.oauthClientId) : '—' }] as TableColumn<Application>[] : []),
   {
     accessorKey: 'canImpersonate',
-    header: 'Impersonation',
-    cell: ({ row }) => h(UBadge, { variant: 'subtle', color: row.original.canImpersonate ? 'warning' : 'neutral', label: row.original.canImpersonate ? 'Autorisée' : 'Non' }),
+    header: t('applications.columnImpersonation'),
+    cell: ({ row }) => h(UBadge, { variant: 'subtle', color: row.original.canImpersonate ? 'warning' : 'neutral', label: row.original.canImpersonate ? t('applications.allowed') : t('applications.notAllowed') }),
   },
   ...(embed
     ? [
-        { accessorKey: 'allowedOrigins', header: 'Origines (embed)', cell: ({ row }) => row.original.allowedOrigins.join(', ') || '—' },
-        { accessorKey: 'palette', header: 'Palette', cell: ({ row }) => row.original.palette?.name ?? h('span', { class: 'text-muted' }, 'Projet') },
+        { accessorKey: 'allowedOrigins', header: t('applications.columnOrigins'), cell: ({ row }) => row.original.allowedOrigins.join(', ') || '—' },
+        { accessorKey: 'palette', header: t('applications.columnPalette'), cell: ({ row }) => row.original.palette?.name ?? h('span', { class: 'text-muted' }, t('applications.projectPalette')) },
       ] as TableColumn<Application>[]
     : []),
   ...resolveRocketColumns<Application>(extensions.columns, 'application'),
-  { accessorKey: 'lastUsedAt', header: 'Dernier appel', cell: ({ row }) => formatDate(row.original.lastUsedAt) },
+  { accessorKey: 'lastUsedAt', header: t('applications.columnLastUsed'), cell: ({ row }) => formatDate(row.original.lastUsedAt) },
   {
     accessorKey: 'enabled',
-    header: 'Active',
+    header: t('applications.columnActive'),
     cell: ({ row }) => h(USwitch, { 'modelValue': row.original.enabled, 'onUpdate:modelValue': (value: boolean) => patch(row.original, { enabled: value }) }),
   },
   {
     id: 'actions',
     cell: ({ row }) => h('div', { class: 'flex justify-end gap-1' }, [
       ...rowActions.map(action => h(action, { application: row.original, onRefresh: () => refresh() })),
-      h(UButton, { icon: 'i-lucide-pencil', color: 'neutral', variant: 'ghost', 'aria-label': 'Modifier', onClick: () => edit(row.original) }),
-      h(UButton, { icon: 'i-lucide-rotate-cw', color: 'neutral', variant: 'ghost', 'aria-label': 'Régénérer le jeton', onClick: () => (toRotate.value = row.original) }),
-      h(UButton, { icon: 'i-lucide-trash-2', color: 'error', variant: 'ghost', 'aria-label': 'Supprimer', onClick: () => (toDelete.value = row.original) }),
+      h(UButton, { icon: 'i-lucide-pencil', color: 'neutral', variant: 'ghost', 'aria-label': t('applications.editAction'), onClick: () => edit(row.original) }),
+      h(UButton, { icon: 'i-lucide-rotate-cw', color: 'neutral', variant: 'ghost', 'aria-label': t('applications.regenerateToken'), onClick: () => (toRotate.value = row.original) }),
+      h(UButton, { icon: 'i-lucide-trash-2', color: 'error', variant: 'ghost', 'aria-label': t('applications.deleteAction'), onClick: () => (toDelete.value = row.original) }),
     ]),
   },
-]
+])
 
 // Create / edit
 const formOpen = ref(false)
@@ -123,7 +124,7 @@ async function saveExtensions(application: Application): Promise<boolean> {
     return true
   }
   catch (error) {
-    toast.add({ title: 'Enregistrement incomplet', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('applications.saveIncomplete'), description: apiErrorMessage(error), color: 'error' })
     return false
   }
 }
@@ -139,7 +140,7 @@ async function submit() {
     created = await api<Application>('/api/applications', { method: 'POST', body })
   }
   catch (error) {
-    toast.add({ title: 'Création impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('applications.createFailed'), description: apiErrorMessage(error), color: 'error' })
     return
   }
   // Created: its token is shown once, even if a section of the brick still has to be fixed (Modifier).
@@ -163,7 +164,7 @@ async function rotate() {
     await refresh()
   }
   catch (error) {
-    toast.add({ title: 'Régénération impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('applications.regenerateFailed'), description: apiErrorMessage(error), color: 'error' })
   }
 }
 
@@ -175,13 +176,13 @@ async function remove() {
     await refresh()
   }
   catch (error) {
-    toast.add({ title: 'Suppression impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('applications.deleteFailed'), description: apiErrorMessage(error), color: 'error' })
   }
 }
 
 async function copy(text: string) {
   await navigator.clipboard.writeText(text)
-  toast.add({ title: 'Copié', color: 'success', duration: 1500 })
+  toast.add({ title: t('applications.tokenCopied'), color: 'success', duration: 1500 })
 }
 
 const snippet = computed(() => revealed.value && `# Server side only: never expose the application token to a browser.
@@ -193,12 +194,12 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
 <template>
   <UDashboardPanel id="applications">
     <template #header>
-      <UDashboardNavbar title="Applications externes">
+      <UDashboardNavbar :title="t('applications.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton icon="i-lucide-plus" label="Nouvelle application" @click="create" />
+          <UButton icon="i-lucide-plus" :label="t('applications.newApplication')" @click="create" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -208,7 +209,7 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
         icon="i-lucide-info"
         variant="subtle"
         color="neutral"
-        title="Comment ça marche"
+        :title="t('applications.howItWorks')"
         :description="help"
       />
       <UAlert
@@ -216,32 +217,32 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
         icon="i-lucide-link"
         variant="subtle"
         color="neutral"
-        title="Briques de la suite"
-        description="Les autres briques de la suite Rocket appellent l'API avec un jeton d'accès de Rocket Auth plutôt qu'avec un jeton statique. Déclarez-les comme applications et renseignez leur client Rocket Auth (ex. rocket-cloud) : vous décidez ainsi qui peut appeler cette brique, et si elle peut agir en tant qu'utilisateur."
+        :title="t('applications.suiteBricksTitle')"
+        :description="t('applications.suiteBricksDescription')"
       />
-      <UTable :data="applications" :columns="columns" :loading="status === 'pending'" empty="Aucune application." />
+      <UTable :data="applications" :columns="columns" :loading="status === 'pending'" :empty="t('applications.empty')" />
 
-      <UModal v-model:open="formOpen" :title="editing ? `Modifier ${editing.name}` : 'Nouvelle application'">
+      <UModal v-model:open="formOpen" :title="editing ? t('applications.editTitle', { name: editing.name }) : t('applications.newApplication')">
         <template #body>
           <form id="application-form" class="flex flex-col gap-3" @submit.prevent="submit">
-            <UFormField label="Nom" required>
+            <UFormField :label="t('applications.nameField')" required>
               <UInput v-model="form.name" class="w-full" />
             </UFormField>
-            <UFormField label="Description">
+            <UFormField :label="t('applications.descriptionField')">
               <UTextarea v-model="form.description" class="w-full" :rows="2" />
             </UFormField>
-            <USwitch v-model="form.canImpersonate" :label="embed ? 'Peut agir en tant qu\'utilisateur (impersonation + embed)' : 'Peut agir en tant qu\'utilisateur (impersonation)'" />
-            <UFormField v-if="embed" label="Origines autorisées à embarquer les pages" hint="ex. https://crm.exemple.com">
+            <USwitch v-model="form.canImpersonate" :label="embed ? t('applications.impersonateLabelEmbed') : t('applications.impersonateLabel')" />
+            <UFormField v-if="embed" :label="t('applications.allowedOriginsLabel')" :hint="t('applications.allowedOriginsHint')">
               <UInputTags v-model="form.allowedOrigins" add-on-blur add-on-paste class="w-full" />
             </UFormField>
-            <UFormField v-if="embed" label="Palette des pages embarquées" hint="Par défaut : celle du projet">
+            <UFormField v-if="embed" :label="t('applications.embedPaletteLabel')" :hint="t('applications.embedPaletteHint')">
               <USelect v-model="form.palette" :items="paletteItems" class="w-full" data-testid="application-palette" />
             </UFormField>
             <UFormField
               v-if="isSuite || form.oauthClientId"
-              label="Client Rocket Auth"
-              hint="ex. rocket-cloud"
-              help="Une brique de la suite enregistrée sous ce client ID dans Rocket Auth appelle l'API avec un jeton d'accès de Rocket Auth (client credentials), sans jeton statique. Elle obtient les droits de cette application."
+              :label="t('applications.oauthClientLabel')"
+              :hint="t('applications.oauthClientHint')"
+              :help="t('applications.oauthClientHelp')"
             >
               <UInput v-model="form.oauthClientId" class="w-full font-mono" placeholder="rocket-…" />
             </UFormField>
@@ -250,24 +251,24 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
         </template>
         <template #footer>
           <div class="flex w-full justify-end gap-2">
-            <UButton label="Annuler" color="neutral" variant="ghost" @click="formOpen = false" />
-            <UButton type="submit" form="application-form" :label="editing ? 'Enregistrer' : 'Créer'" />
+            <UButton :label="t('common.cancel')" color="neutral" variant="ghost" @click="formOpen = false" />
+            <UButton type="submit" form="application-form" :label="editing ? t('common.save') : t('common.create')" />
           </div>
         </template>
       </UModal>
 
-      <UModal :open="revealed !== null" title="Jeton de l'application" :dismissible="false" :ui="{ content: 'max-w-2xl' }" @update:open="(value: boolean) => { if (!value) revealed = null }">
+      <UModal :open="revealed !== null" :title="t('applications.tokenTitle')" :dismissible="false" :ui="{ content: 'max-w-2xl' }" @update:open="(value: boolean) => { if (!value) revealed = null }">
         <template #body>
           <div v-if="revealed" class="flex flex-col gap-4">
-            <UAlert color="warning" variant="subtle" icon="i-lucide-triangle-alert" description="Copiez ce jeton maintenant : il ne sera plus jamais affiché. Stockez-le côté serveur uniquement." />
+            <UAlert color="warning" variant="subtle" icon="i-lucide-triangle-alert" :description="t('applications.tokenWarning')" />
             <div class="flex items-center gap-2">
               <code class="min-w-0 flex-1 break-all rounded bg-elevated p-2 text-sm">{{ revealed.token }}</code>
-              <UButton icon="i-lucide-copy" color="neutral" variant="outline" aria-label="Copier" @click="copy(revealed.token)" />
+              <UButton icon="i-lucide-copy" color="neutral" variant="outline" :aria-label="t('common.copy')" @click="copy(revealed.token)" />
             </div>
             <component :is="tokenExample" v-if="tokenExample" :application="revealed.application" :token="revealed.token" />
             <div v-else>
               <p class="mb-1 text-sm font-medium">
-                Exemple d'appel
+                {{ t('applications.exampleCall') }}
               </p>
               <pre class="max-h-72 overflow-auto rounded bg-elevated p-3 text-xs">{{ snippet }}</pre>
             </div>
@@ -275,25 +276,25 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
         </template>
         <template #footer>
           <div class="flex w-full justify-end">
-            <UButton label="J'ai copié le jeton" @click="revealed = null" />
+            <UButton :label="t('applications.copiedButton')" @click="revealed = null" />
           </div>
         </template>
       </UModal>
 
-      <UModal :open="toRotate !== null" title="Régénérer le jeton ?" description="L'ancien jeton cessera immédiatement de fonctionner." @update:open="(value: boolean) => { if (!value) toRotate = null }">
+      <UModal :open="toRotate !== null" :title="t('applications.rotateTitle')" :description="t('applications.rotateDescription')" @update:open="(value: boolean) => { if (!value) toRotate = null }">
         <template #footer>
           <div class="flex w-full justify-end gap-2">
-            <UButton label="Annuler" color="neutral" variant="ghost" @click="toRotate = null" />
-            <UButton label="Régénérer" color="warning" @click="rotate" />
+            <UButton :label="t('common.cancel')" color="neutral" variant="ghost" @click="toRotate = null" />
+            <UButton :label="t('applications.regenerateToken')" color="warning" @click="rotate" />
           </div>
         </template>
       </UModal>
 
-      <UModal :open="toDelete !== null" title="Supprimer l'application ?" :description="toDelete ? `« ${toDelete.name} » ne pourra plus accéder à l'API.` : ''" @update:open="(value: boolean) => { if (!value) toDelete = null }">
+      <UModal :open="toDelete !== null" :title="t('applications.deleteTitle')" :description="toDelete ? t('applications.deleteDescription', { name: toDelete.name }) : ''" @update:open="(value: boolean) => { if (!value) toDelete = null }">
         <template #footer>
           <div class="flex w-full justify-end gap-2">
-            <UButton label="Annuler" color="neutral" variant="ghost" @click="toDelete = null" />
-            <UButton label="Supprimer" color="error" @click="remove" />
+            <UButton :label="t('common.cancel')" color="neutral" variant="ghost" @click="toDelete = null" />
+            <UButton :label="t('applications.deleteAction')" color="error" @click="remove" />
           </div>
         </template>
       </UModal>

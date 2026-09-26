@@ -1,7 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'bare' })
 const appName = useAppConfig().rocket.name
-useHead({ title: `Connexion · ${appName}` })
+const { t } = useRocketI18n()
+useHead({ title: () => `${t('login.title')} · ${appName}` })
 
 const auth = useAuth()
 const config = useRuntimeConfig()
@@ -12,11 +13,11 @@ onMounted(async () => {
   const query = route.query
   const pending = takePendingSignIn(typeof query.state === 'string' ? query.state : null)
   if (typeof query.error === 'string') {
-    error.value = typeof query.error_description === 'string' ? query.error_description : `Connexion refusée (${query.error}).`
+    error.value = typeof query.error_description === 'string' ? query.error_description : t('login.refused', { error: query.error })
     return
   }
   if (!pending || typeof query.code !== 'string') {
-    error.value = 'Cette réponse de connexion est invalide ou a expiré. Recommencez depuis la page de connexion.'
+    error.value = t('login.invalidResponse')
     return
   }
   try {
@@ -46,11 +47,11 @@ onMounted(async () => {
     <UCard class="w-full max-w-sm">
       <div v-if="!error" class="flex items-center gap-3 text-sm text-muted">
         <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin" />
-        Connexion en cours…
+        {{ t('login.inProgress') }}
       </div>
       <div v-else class="flex flex-col gap-4">
-        <UAlert color="error" variant="subtle" icon="i-lucide-circle-alert" title="Connexion impossible" :description="error" />
-        <UButton to="/login" label="Retour à la connexion" color="neutral" variant="outline" block />
+        <UAlert color="error" variant="subtle" icon="i-lucide-circle-alert" :title="t('login.failed')" :description="error" />
+        <UButton to="/login" :label="t('login.backToLogin')" color="neutral" variant="outline" block />
       </div>
     </UCard>
   </div>

@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Update;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Process;
 
@@ -16,6 +18,7 @@ class ScriptUpdater
         #[Autowire('%env(resolve:UPDATE_SCRIPT)%')] private readonly string $script,
         #[Autowire('%env(UPDATE_RESTART_COMMAND)%')] private readonly string $restartCommand,
         #[Autowire('%env(int:UPDATE_SCRIPT_TIMEOUT)%')] private readonly int $timeout,
+        private readonly ?CoreMessages $messages = null,
     ) {
     }
 
@@ -37,10 +40,10 @@ class ScriptUpdater
     public function run(?string $target, callable $onOutput): int
     {
         if (!$this->isInstalled()) {
-            throw new UpdateException(\sprintf('Le script de mise à jour « %s » est introuvable ou n’est pas exécutable.', $this->script));
+            throw new UpdateException($this->trans('update.script_missing', ['script' => $this->script]));
         }
         if (null !== $target && null === AppVersion::releaseOf($target)) {
-            throw new UpdateException(\sprintf('Version à installer invalide : « %s ».', $target));
+            throw new UpdateException($this->trans('update.invalid_version', ['version' => $target]));
         }
 
         $process = new Process([$this->script()], \dirname($this->script()), [
@@ -51,5 +54,11 @@ class ScriptUpdater
         return $process->run(static function (string $type, string $output) use ($onOutput): void {
             $onOutput($output);
         });
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

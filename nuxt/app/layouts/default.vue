@@ -3,6 +3,7 @@ import type { NavigationMenuItem } from '@nuxt/ui'
 
 const auth = useAuth()
 const app = useAppConfig().rocket
+const { t, locale, locales, setLocale } = useRocketI18n()
 const { version, updateAvailable, load: loadVersion } = useAppVersion()
 
 watch(() => auth.me.value, (me) => {
@@ -24,27 +25,37 @@ const switcher = computed(() => [
     target: '_self',
     disabled: other.id === suite.value?.app.id,
   })),
-  suite.value?.auth ? [{ label: `Mon compte (${suite.value.auth.name})`, icon: 'i-lucide-user-cog', to: suite.value.auth.accountUrl, target: '_blank' }] : [],
+  suite.value?.auth ? [{ label: t('layout.myAccount', { name: suite.value.auth.name }), icon: 'i-lucide-user-cog', to: suite.value.auth.accountUrl, target: '_blank' }] : [],
 ].filter(group => group.length))
 
 const items = computed<NavigationMenuItem[][]>(() => [
   [
-    { label: 'Tableau de bord', icon: 'i-lucide-layout-dashboard', to: '/' },
+    { label: t('layout.dashboard'), icon: 'i-lucide-layout-dashboard', to: '/' },
   ],
-  app.navigation.filter(item => !item.admin || auth.isAdmin.value) as NavigationMenuItem[],
+  // Labels of the brick may be keys of its texts (rocket.messages): t() returns any other label unchanged.
+  app.navigation.filter(item => !item.admin || auth.isAdmin.value).map(item => ({ ...item, label: t(item.label) })) as NavigationMenuItem[],
   auth.isAdmin.value
     ? [
-        { label: 'Administration', type: 'label' },
-        ...app.adminNavigation,
-        { label: 'Utilisateurs', icon: 'i-lucide-users', to: '/users' },
+        { label: t('layout.administration'), type: 'label' },
+        ...app.adminNavigation.map(item => ({ ...item, label: t(item.label) })),
+        { label: t('layout.users'), icon: 'i-lucide-users', to: '/users' },
         // Suite mode: sign-in is Rocket Auth's (managed from the configuration).
-        ...(isSuite.value ? [] : [{ label: 'Serveurs d’authentification', icon: 'i-lucide-shield-check', to: '/authentication-servers' }]),
-        { label: 'Applications', icon: 'i-lucide-key-round', to: '/applications' },
-        { label: 'Palettes', icon: 'i-lucide-palette', to: '/palettes' },
-        { label: 'Mises à jour', icon: updateAvailable.value ? 'i-lucide-circle-arrow-up' : 'i-lucide-refresh-cw', to: '/updates' },
+        ...(isSuite.value ? [] : [{ label: t('layout.authServers'), icon: 'i-lucide-shield-check', to: '/authentication-servers' }]),
+        { label: t('layout.applications'), icon: 'i-lucide-key-round', to: '/applications' },
+        { label: t('layout.palettes'), icon: 'i-lucide-palette', to: '/palettes' },
+        { label: t('layout.updates'), icon: updateAvailable.value ? 'i-lucide-circle-arrow-up' : 'i-lucide-refresh-cw', to: '/updates' },
       ]
     : [],
 ])
+
+// Language menu, when the application offers several.
+const LANGUAGE_NAMES: Record<string, string> = { fr: 'layout.french', en: 'layout.english' }
+const languageItems = computed(() => [locales.value.map(code => ({
+  label: t(LANGUAGE_NAMES[code] ?? code),
+  type: 'checkbox' as const,
+  checked: locale.value === code,
+  onSelect: () => setLocale(code),
+}))])
 </script>
 
 <template>
@@ -74,11 +85,11 @@ const items = computed<NavigationMenuItem[][]>(() => [
         <div class="flex w-full flex-col gap-2">
           <template v-if="!collapsed">
             <NuxtLink v-if="auth.isAdmin.value" to="/updates" class="flex items-center gap-2 px-2 text-xs text-muted hover:text-default" data-testid="app-version">
-              <span class="truncate">Version {{ version }}</span>
-              <UBadge v-if="updateAvailable" label="Nouveau" size="sm" variant="subtle" icon="i-lucide-circle-arrow-up" class="shrink-0" />
+              <span class="truncate">{{ t('layout.version', { version }) }}</span>
+              <UBadge v-if="updateAvailable" :label="t('layout.new')" size="sm" variant="subtle" icon="i-lucide-circle-arrow-up" class="shrink-0" />
             </NuxtLink>
             <p v-else class="px-2 text-xs text-muted" data-testid="app-version">
-              Version {{ version }}
+              {{ t('layout.version', { version }) }}
             </p>
           </template>
           <div class="flex w-full items-center gap-2">
@@ -89,12 +100,15 @@ const items = computed<NavigationMenuItem[][]>(() => [
               size="sm"
               class="min-w-0 flex-1"
             />
+            <UDropdownMenu v-if="!collapsed && locales.length > 1" :items="languageItems" :content="{ align: 'end', side: 'top' }">
+              <UButton color="neutral" variant="ghost" :label="locale.toUpperCase()" :aria-label="t('common.language')" data-testid="language" />
+            </UDropdownMenu>
             <ColorModeSwitch v-if="!collapsed" />
             <UButton
               icon="i-lucide-log-out"
               color="neutral"
               variant="ghost"
-              aria-label="Se déconnecter"
+              :aria-label="t('layout.logout')"
               @click="auth.logout()"
             />
           </div>

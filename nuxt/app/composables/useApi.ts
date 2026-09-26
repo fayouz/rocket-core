@@ -10,10 +10,13 @@ type ApiOptions = NitroFetchOptions<NitroFetchRequest>
 export function useApi() {
   const config = useRuntimeConfig()
   const auth = useAuth()
+  const { locale } = useRocketI18n()
 
   return async function api<T>(url: string, options: ApiOptions = {}, retried = false): Promise<T> {
     const headers = new Headers(options.headers as HeadersInit | undefined)
     if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+    // Messages of the API (errors, dashboard, health) in the interface's language.
+    if (!headers.has('Accept-Language')) headers.set('Accept-Language', locale.value)
     const authorization = auth.authorizationHeader()
     if (authorization) headers.set('Authorization', authorization)
     if (options.method === 'PATCH') headers.set('Content-Type', 'application/merge-patch+json')

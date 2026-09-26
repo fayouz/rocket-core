@@ -2,7 +2,8 @@
 import type { Dashboard, DashboardActivity, DashboardKpi, ServiceStatus } from '#rocket/types/api'
 
 const app = useAppConfig().rocket
-useHead({ title: `Tableau de bord · ${app.name}` })
+const { t, languageTag } = useRocketI18n()
+useHead({ title: () => `${t('dashboard.title')} · ${app.name}` })
 
 const api = useApi()
 const auth = useAuth()
@@ -26,17 +27,17 @@ onBeforeUnmount(() => clearInterval(timer))
 
 const isAdmin = computed(() => auth.isAdmin.value)
 const firstName = computed(() => auth.me.value?.user?.firstName || auth.me.value?.user?.displayName || '')
-const today = computed(() => capitalize(new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now.value)))
+const today = computed(() => capitalize(new Intl.DateTimeFormat(languageTag.value, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now.value)))
 
-const HEALTH: Record<ServiceStatus, { label: string, dot: string }> = {
-  operational: { label: 'Opérationnel', dot: 'bg-success' },
-  degraded: { label: 'Dégradé', dot: 'bg-warning' },
-  down: { label: 'Hors service', dot: 'bg-error' },
-  disabled: { label: 'Désactivé', dot: 'bg-neutral-400 dark:bg-neutral-600' },
-  unknown: { label: 'Non vérifié', dot: 'bg-neutral-300 dark:bg-neutral-700' },
-}
+const HEALTH = computed<Record<ServiceStatus, { label: string, dot: string }>>(() => ({
+  operational: { label: t('dashboard.healthOperational'), dot: 'bg-success' },
+  degraded: { label: t('dashboard.healthDegraded'), dot: 'bg-warning' },
+  down: { label: t('dashboard.healthDown'), dot: 'bg-error' },
+  disabled: { label: t('dashboard.healthDisabled'), dot: 'bg-neutral-400 dark:bg-neutral-600' },
+  unknown: { label: t('dashboard.healthUnknown'), dot: 'bg-neutral-300 dark:bg-neutral-700' },
+}))
 
-// LDAP and OpenID Connect providers are checked over the network by the worker every 5 minutes; "Vérifier" runs them now.
+// LDAP and OpenID Connect providers are checked over the network by the worker every 5 minutes; "Check" runs them now.
 const checking = ref(false)
 async function checkServices() {
   if (!data.value) return
@@ -45,16 +46,16 @@ async function checkServices() {
     data.value.health = await api<Dashboard['health']>('/api/health/check', { method: 'POST' })
   }
   catch (error) {
-    toast.add({ title: 'Vérification impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('dashboard.checkFailedTitle'), description: apiErrorMessage(error), color: 'error' })
   }
   finally {
     checking.value = false
   }
 }
 const platformStatus = computed(() => ({
-  operational: 'Systèmes opérationnels',
-  degraded: 'Service dégradé',
-  down: 'Incident en cours',
+  operational: t('dashboard.platformOperational'),
+  degraded: t('dashboard.platformDegraded'),
+  down: t('dashboard.platformDown'),
 }[data.value?.health.status ?? 'operational']))
 
 // --- KPIs ---------------------------------------------------------------------------------------
@@ -79,11 +80,15 @@ async function syncLdap() {
   syncing.value = true
   try {
     const report = await api<{ created: number, updated: number, disabled: number }>('/api/ldap/sync', { method: 'POST' })
-    toast.add({ title: 'Annuaire synchronisé', description: `${report.created} créé(s), ${report.updated} mis à jour, ${report.disabled} désactivé(s)`, color: 'success' })
+    toast.add({
+      title: t('dashboard.syncSuccessTitle'),
+      description: t('dashboard.syncSuccessDescription', { created: report.created, updated: report.updated, disabled: report.disabled }),
+      color: 'success',
+    })
     await refresh()
   }
   catch (error) {
-    toast.add({ title: 'Synchronisation impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('dashboard.syncFailedTitle'), description: apiErrorMessage(error), color: 'error' })
   }
   finally {
     syncing.value = false
@@ -95,10 +100,10 @@ const quickActions = computed(() => [
   ...(data.value?.quickActions ?? []),
   ...(isAdmin.value
     ? [
-        { label: 'Nouvelle application', icon: 'i-lucide-plug', to: '/applications?new=1', tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
+        { label: t('dashboard.newApplication'), icon: 'i-lucide-plug', to: '/applications?new=1', tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
         suite.value?.auth
-          ? { label: `Comptes (${suite.value.auth.name})`, icon: 'i-lucide-users', to: suite.value.auth.accountUrl, tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' }
-          : { label: 'Nouvel utilisateur', icon: 'i-lucide-user-plus', to: '/users?new=1', tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+          ? { label: t('dashboard.accountsOf', { name: suite.value.auth.name }), icon: 'i-lucide-users', to: suite.value.auth.accountUrl, tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' }
+          : { label: t('dashboard.newUser'), icon: 'i-lucide-user-plus', to: '/users?new=1', tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
       ]
     : []),
 ].slice(0, 4))
@@ -117,13 +122,13 @@ const activityByDay = computed(() => {
 function dayLabel(value: string): string {
   const date = new Date(value)
   const days = Math.round((new Date(now.value).setHours(0, 0, 0, 0) - new Date(date).setHours(0, 0, 0, 0)) / 86_400_000)
-  if (days === 0) return 'Aujourd’hui'
-  if (days === 1) return 'Hier'
-  return capitalize(new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(date))
+  if (days === 0) return t('dashboard.today')
+  if (days === 1) return t('dashboard.yesterday')
+  return capitalize(new Intl.DateTimeFormat(languageTag.value, { weekday: 'long', day: 'numeric', month: 'long' }).format(date))
 }
 
 function time(value: string): string {
-  return new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+  return new Intl.DateTimeFormat(languageTag.value, { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
 // --- Daily chart (stacked series) ---------------------------------------------------------------
@@ -137,54 +142,54 @@ const bars = computed(() => {
     date: String(d.date),
     total: totals[i]!,
     segments: series.map(s => ({ key: s.key, color: s.color, height: (100 * Number(d[s.key] ?? 0)) / max })),
-    tooltip: `${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(new Date(String(d.date)))} · ${series.map(s => `${d[s.key] ?? 0} ${s.label.toLowerCase()}`).join(', ')}`,
+    tooltip: `${new Intl.DateTimeFormat(languageTag.value, { day: 'numeric', month: 'short' }).format(new Date(String(d.date)))} · ${series.map(s => `${d[s.key] ?? 0} ${s.label.toLowerCase()}`).join(', ')}`,
   }))
 })
 
 // --- Applications -------------------------------------------------------------------------------
 
 function applicationState(application: NonNullable<Dashboard['applications']>[number]) {
-  if (!application.enabled) return { label: 'Désactivée', color: 'neutral' as const }
+  if (!application.enabled) return { label: t('dashboard.disabledLabel'), color: 'neutral' as const }
   if (application.lastUsedAt && now.value.getTime() - new Date(application.lastUsedAt).getTime() < 7 * 86_400_000) {
-    return { label: 'Active', color: 'success' as const }
+    return { label: t('dashboard.active'), color: 'success' as const }
   }
-  return { label: 'Inactive', color: 'warning' as const }
+  return { label: t('dashboard.inactive'), color: 'warning' as const }
 }
 
 // --- Shortcuts ----------------------------------------------------------------------------------
 
 const shortcuts = computed(() => [
-  { label: 'Documentation', description: 'Guides d’utilisation et d’administration', icon: 'i-lucide-book-open', to: config.public.docsUrl, external: true },
-  { label: 'Nouveautés', description: 'Changelog des versions', icon: 'i-lucide-history', to: config.public.changelogUrl, external: true },
-  { label: 'API', description: 'OpenAPI et bac à sable', icon: 'i-lucide-braces', to: `${config.public.apiBase}/api/docs`, external: true },
+  { label: t('dashboard.docs'), description: t('dashboard.docsDescription'), icon: 'i-lucide-book-open', to: config.public.docsUrl, external: true },
+  { label: t('dashboard.changelog'), description: t('dashboard.changelogDescription'), icon: 'i-lucide-history', to: config.public.changelogUrl, external: true },
+  { label: t('dashboard.api'), description: t('dashboard.apiDescription'), icon: 'i-lucide-braces', to: `${config.public.apiBase}/api/docs`, external: true },
   ...app.shortcuts.filter(s => !s.admin || isAdmin.value).map(s => ({ ...s, external: s.to.startsWith('http') })),
   ...(isAdmin.value
-    ? [{ label: 'Applications', description: 'Jetons et impersonation', icon: 'i-lucide-key-round', to: '/applications', external: false }]
+    ? [{ label: t('dashboard.applications'), description: t('dashboard.applicationsDescription'), icon: 'i-lucide-key-round', to: '/applications', external: false }]
     : []),
 ])
 
 function serviceMetric(service: NonNullable<Dashboard['health']['services']>[number]): string | null {
   if (service.id === 'database') return service.latencyMs !== undefined ? `${service.latencyMs} ms` : null
-  if (service.id === 'queue') return `${service.queued ?? 0} en attente`
-  if (service.id === 'storage') return service.freeBytes ? `${formatSize(service.freeBytes)} libres` : null
+  if (service.id === 'queue') return t('dashboard.queued', { count: service.queued ?? 0 })
+  if (service.id === 'storage') return service.freeBytes ? t('dashboard.freeSpace', { size: formatSize(service.freeBytes) }) : null
   if (service.id === 'ldap') {
     return service.check?.checkedAt
-      ? `Vérifié ${timeAgo(service.check.checkedAt, now.value)}${service.latencyMs ? ` · ${service.latencyMs} ms` : ''}`
-      : service.lastSyncAt ? `Synchro ${timeAgo(service.lastSyncAt, now.value)}` : null
+      ? `${t('dashboard.checked', { time: timeAgo(service.check.checkedAt, now.value) })}${service.latencyMs ? ` · ${service.latencyMs} ms` : ''}`
+      : service.lastSyncAt ? t('dashboard.synced', { time: timeAgo(service.lastSyncAt, now.value) }) : null
   }
-  return service.total ? `${service.total - (service.failing ?? 0)}/${service.total} OK` : null
+  return service.total ? `${service.total - (service.failing ?? 0)}/${service.total} ${t('dashboard.ok')}` : null
 }
 </script>
 
 <template>
   <UDashboardPanel id="dashboard">
     <template #header>
-      <UDashboardNavbar title="Tableau de bord">
+      <UDashboardNavbar :title="t('dashboard.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" aria-label="Rafraîchir" :loading="status === 'pending'" @click="refresh()" />
+          <UButton icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :aria-label="t('dashboard.refresh')" :loading="status === 'pending'" @click="refresh()" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -196,10 +201,10 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
           <div class="flex flex-col justify-center gap-3 lg:col-span-3">
             <div>
               <h1 class="text-2xl font-semibold text-highlighted sm:text-3xl">
-                Bonjour{{ firstName ? `, ${firstName}` : '' }} 👋
+                {{ t('dashboard.greeting', { name: firstName ? `, ${firstName}` : '' }) }} 👋
               </h1>
               <p class="mt-1 text-muted">
-                {{ data.scope === 'platform' ? 'Voici l’état de votre plateforme en temps réel.' : 'Voici votre activité.' }}
+                {{ data.scope === 'platform' ? t('dashboard.scopePlatform') : t('dashboard.scopeAccount') }}
               </p>
             </div>
             <div class="flex flex-wrap gap-2 text-sm">
@@ -212,7 +217,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
               </span>
               <span class="inline-flex items-center gap-2 rounded-full border border-default px-3 py-1 text-muted">
                 <UIcon name="i-lucide-refresh-cw" class="size-3.5" />
-                Mis à jour {{ timeAgo(data.generatedAt, now) }}
+                {{ t('dashboard.updatedAt', { time: timeAgo(data.generatedAt, now) }) }}
               </span>
               <span class="inline-flex items-center gap-2 rounded-full border border-default px-3 py-1 text-muted">
                 <UIcon name="i-lucide-calendar" class="size-3.5" />
@@ -226,7 +231,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
         <!-- Quick actions -->
         <section v-if="quickActions.length || isAdmin" aria-labelledby="quick-actions">
           <h2 id="quick-actions" class="mb-2 text-sm font-medium text-muted">
-            Actions rapides
+            {{ t('dashboard.quickActions') }}
           </h2>
           <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
             <ULink
@@ -243,7 +248,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
             <UButton
               v-if="isAdmin && data.health.services?.find(s => s.id === 'ldap')?.status !== 'disabled'"
               icon="i-lucide-folder-sync"
-              label="Synchroniser LDAP"
+              :label="t('dashboard.syncLdap')"
               color="neutral"
               variant="outline"
               class="justify-center"
@@ -272,7 +277,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
             <template v-if="kpiDelta(kpi) !== null || kpi.legend?.length" #footer>
               <span v-if="kpiDelta(kpi) !== null" :class="kpiDelta(kpi)! >= 0 ? 'text-success' : 'text-error'" class="inline-flex items-center gap-1 font-medium">
                 <UIcon :name="kpiDelta(kpi)! >= 0 ? 'i-lucide-trending-up' : 'i-lucide-trending-down'" class="size-3.5" />
-                {{ kpiDelta(kpi)! > 0 ? '+' : '' }}{{ kpiDelta(kpi) }} % vs 30 jours précédents
+                {{ kpiDelta(kpi)! > 0 ? '+' : '' }}{{ kpiDelta(kpi) }} % {{ t('dashboard.kpiDeltaSuffix') }}
               </span>
               <span v-for="item in kpi.legend" :key="item.label" class="inline-flex items-center gap-1.5">
                 <span class="size-2 rounded-full" :class="item.color" />{{ item.label }}
@@ -292,7 +297,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
                 <h2 class="font-semibold text-highlighted">
                   {{ data.recent.title }}
                 </h2>
-                <UButton v-if="data.recent.link" label="Tout voir" :to="data.recent.link" color="neutral" variant="ghost" size="sm" trailing-icon="i-lucide-arrow-right" />
+                <UButton v-if="data.recent.link" :label="t('dashboard.seeAll')" :to="data.recent.link" color="neutral" variant="ghost" size="sm" trailing-icon="i-lucide-arrow-right" />
               </template>
               <ul v-if="data.recent.items.length" class="divide-y divide-default" data-testid="recent-items">
                 <li v-for="item in data.recent.items" :key="item.id" class="flex items-center gap-3 px-4 py-3 sm:px-6">
@@ -320,9 +325,9 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
             <UCard v-if="data.applications" :ui="{ header: 'flex items-center justify-between gap-2' }">
               <template #header>
                 <h2 class="font-semibold text-highlighted">
-                  Intégrations
+                  {{ t('dashboard.integrations') }}
                 </h2>
-                <UButton label="Gérer" to="/applications" color="neutral" variant="ghost" size="sm" trailing-icon="i-lucide-arrow-right" />
+                <UButton :label="t('dashboard.manage')" to="/applications" color="neutral" variant="ghost" size="sm" trailing-icon="i-lucide-arrow-right" />
               </template>
               <div v-if="data.applications.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="integrations">
                 <div
@@ -338,13 +343,13 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
                     <UBadge v-bind="applicationState(application)" variant="subtle" size="sm" />
                   </div>
                   <div class="flex items-center justify-between text-xs text-muted">
-                    <span>{{ application.canImpersonate ? 'Impersonation' : 'Identification seule' }}</span>
+                    <span>{{ application.canImpersonate ? t('dashboard.impersonation') : t('dashboard.identificationOnly') }}</span>
                     <span>{{ timeAgo(application.lastUsedAt, now) }}</span>
                   </div>
                 </div>
               </div>
               <p v-else class="text-sm text-muted">
-                Aucune application : créez-en une pour appeler l’API depuis vos outils.
+                {{ t('dashboard.noIntegrations') }}
               </p>
             </UCard>
 
@@ -354,10 +359,10 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
                 <template #header>
                   <div class="flex items-center justify-between gap-2">
                     <h2 class="font-semibold text-highlighted">
-                      État des services
+                      {{ t('dashboard.servicesTitle') }}
                     </h2>
                     <UButton
-                      label="Vérifier"
+                      :label="t('dashboard.check')"
                       icon="i-lucide-activity"
                       size="xs"
                       color="neutral"
@@ -381,7 +386,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
                       {{ service.detail }}
                     </p>
                     <p v-if="service.check?.failingSince && service.status === 'down'" class="text-xs text-error">
-                      En échec depuis {{ timeAgo(service.check.failingSince, now) }}
+                      {{ t('dashboard.failingSince', { time: timeAgo(service.check.failingSince, now) }) }}
                     </p>
                     <ul v-if="service.items?.length" class="ms-4 flex flex-col gap-1" :data-testid="`${service.id}-health`">
                       <li v-for="item in service.items" :key="item.id" class="flex items-start gap-2 text-xs">
@@ -389,7 +394,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
                         <span class="min-w-0">
                           <span class="font-medium text-default">{{ item.name }}</span>
                           <span class="block truncate text-muted" :title="item.check?.detail">
-                            {{ item.check?.status === 'operational' ? 'OK' : item.check?.detail ?? 'Non vérifié' }}
+                            {{ item.check?.status === 'operational' ? t('dashboard.ok') : item.check?.detail ?? t('dashboard.healthUnknown') }}
                           </span>
                         </span>
                       </li>
@@ -408,7 +413,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
               <UCard v-if="data.series.length">
                 <template #header>
                   <h2 class="font-semibold text-highlighted">
-                    Activité ({{ data.days }} derniers jours)
+                    {{ t('dashboard.dailyActivity', { days: data.days }) }}
                   </h2>
                 </template>
                 <div class="flex flex-col gap-4">
@@ -420,8 +425,8 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
                     </UTooltip>
                   </div>
                   <div class="flex justify-between text-xs text-muted">
-                    <span>Il y a {{ data.days }} jours</span>
-                    <span>Aujourd’hui</span>
+                    <span>{{ t('dashboard.daysAgo', { days: data.days }) }}</span>
+                    <span>{{ t('dashboard.today') }}</span>
                   </div>
                   <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                     <span v-for="series in data.series" :key="series.key" class="inline-flex items-center gap-1.5"><span class="size-2 rounded-sm" :class="series.color" />{{ series.label }}</span>
@@ -435,7 +440,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
           <UCard class="xl:row-span-2" :ui="{ body: 'flex flex-col gap-5' }">
             <template #header>
               <h2 class="font-semibold text-highlighted">
-                Activité récente
+                {{ t('dashboard.recentActivity') }}
               </h2>
             </template>
             <section v-for="[day, events] in activityByDay" :key="day" data-testid="activity-day">
@@ -463,7 +468,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
               </ol>
             </section>
             <p v-if="!activityByDay.length" class="text-sm text-muted">
-              Rien à signaler pour l’instant.
+              {{ t('dashboard.noActivity') }}
             </p>
           </UCard>
         </div>
@@ -471,7 +476,7 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
         <!-- Shortcuts -->
         <section aria-labelledby="shortcuts">
           <h2 id="shortcuts" class="mb-2 text-sm font-medium text-muted">
-            Services & raccourcis
+            {{ t('dashboard.shortcuts') }}
           </h2>
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
             <ULink
@@ -495,8 +500,8 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
       </div>
 
       <div v-else-if="status === 'error'" class="flex flex-col items-center gap-3 p-10 text-muted">
-        Le tableau de bord n’a pas pu être chargé.
-        <UButton label="Réessayer" icon="i-lucide-refresh-cw" color="neutral" variant="outline" @click="refresh()" />
+        {{ t('dashboard.loadError') }}
+        <UButton :label="t('dashboard.retry')" icon="i-lucide-refresh-cw" color="neutral" variant="outline" @click="refresh()" />
       </div>
     </template>
   </UDashboardPanel>

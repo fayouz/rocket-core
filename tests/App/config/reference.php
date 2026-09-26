@@ -1858,6 +1858,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     app_name?: scalar|Param|null, // Name of the application, e.g. "Rocket Print". // Default: "Rocket"
  *     app_id?: scalar|Param|null, // Identifier of the application in the suite, e.g. "print". // Default: "rocket"
  *     token_prefix?: scalar|Param|null, // Prefix of the application tokens, e.g. "rpa_" for Rocket Print. // Default: "rka_"
+ *     locales?: list<scalar|Param|null>,
  * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
