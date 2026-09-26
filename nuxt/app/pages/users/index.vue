@@ -14,6 +14,10 @@ const UBadge = resolveComponent('UBadge')
 const USwitch = resolveComponent('USwitch')
 const UButton = resolveComponent('UButton')
 
+// Extension points of the brick (app.config.ts, rocket.extensions.users): see the README.
+const extensions = useRocketExtensions('users')
+const rowActions = resolveRocketComponents(extensions.rowActions)
+
 const { data: users, status, refresh } = await useAsyncData('users', () => api<User[]>('/api/users', { query: { itemsPerPage: 500 } }), { default: () => [] })
 
 const search = ref('')
@@ -90,9 +94,11 @@ const columns: TableColumn<User>[] = [
       ? row.original.groups.map(group => h(UBadge, { label: group, variant: 'outline', color: 'neutral', size: 'sm' }))
       : [h('span', { class: 'text-muted' }, '—')]),
   },
+  ...resolveRocketColumns<User>(extensions.columns, 'user'),
   {
     id: 'actions',
     cell: ({ row }) => h('div', { class: 'flex justify-end gap-1' }, [
+      ...rowActions.map(action => h(action, { user: row.original, onRefresh: () => refresh() })),
       // Directory accounts get their groups from LDAP, and in the suite everyone gets them from Rocket Auth.
       row.original.source !== 'ldap' && !isSuite.value
         ? h(UButton, { 'icon': 'i-lucide-users-round', 'color': 'neutral', 'variant': 'ghost', 'aria-label': 'Groupes', 'data-testid': 'edit-groups', 'onClick': () => editGroups(row.original) })

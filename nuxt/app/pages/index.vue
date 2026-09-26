@@ -8,6 +8,8 @@ const api = useApi()
 const auth = useAuth()
 const config = useRuntimeConfig()
 const toast = useToast()
+// Extension points of the brick (app.config.ts, rocket.extensions.dashboard): see the README.
+const sections = resolveRocketComponents(useRocketExtensions('dashboard').sections)
 
 const { data, status, refresh } = await useAsyncData('dashboard', () => api<Dashboard>('/api/dashboard'))
 
@@ -278,6 +280,9 @@ function serviceMetric(service: NonNullable<Dashboard['health']['services']>[num
             </template>
           </DashboardKpiCard>
         </div>
+
+        <!-- Sections of the brick (rocket.extensions.dashboard) -->
+        <component :is="section" v-for="(section, index) in sections" :key="index" :dashboard="data" />
 
         <div class="grid gap-6 xl:grid-cols-3">
           <div class="flex min-w-0 flex-col gap-6 xl:col-span-2">

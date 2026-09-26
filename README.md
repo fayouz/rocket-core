@@ -64,7 +64,135 @@ export default defineNuxtConfig({
 })
 ```
 
-L'identité et les menus se règlent dans `app.config.ts` (`rocket: { id, name, icon, tagline, navigation, adminNavigation, shortcuts, quotes }`). Les types partagés s'importent de `#rocket/types/api`. `ROCKET_CORE_LAYER=../../rocket-core/nuxt` permet de travailler sur le layer et l'application en même temps.
+L'identité et les menus se règlent dans `app.config.ts` (`rocket: { id, name, icon, tagline, navigation, adminNavigation, shortcuts, quotes, extensions }`). Les types partagés s'importent de `#rocket/types/api`. `ROCKET_CORE_LAYER=../../rocket-core/nuxt` permet de travailler sur le layer et l'application en même temps.
+
+### Points d'extension des pages du layer
+
+Une brique qui a besoin de quelques champs, colonnes ou actions de plus sur une page du layer **l'étend au lieu de la copier** : elle nomme ses propres composants dans `app.config.ts` (`rocket.extensions`), et la page les affiche à leur place. Ces composants doivent être **globaux** (dossier `app/components/global/` ou nom `*.global.vue`) pour être résolus par leur nom ; un nom introuvable est ignoré, avec un avertissement en développement. Contrat typé : `#rocket/types/extensions`.
+
+| Page | Clé | Composant(s) | Props |
+|---|---|---|---|
+| Applications | `applications.columns` | `{ id, header, component }[]` : colonnes insérées avant les actions | `application` |
+| | `applications.rowActions` | actions de chaque ligne (un bouton et sa propre fenêtre), avant celles du layer ; événement `refresh` pour recharger la liste | `application` |
+| | `applications.formSections` | sections ajoutées à la fin du formulaire de création / modification ; `defineExpose({ save(application) })` est attendu une fois l'application enregistrée (une erreur garde la fenêtre ouverte en modification) | `application` (`null` à la création) |
+| | `applications.help` | texte de l'encadré « Comment ça marche » (chaîne ; vide : celui du layer) | |
+| | `applications.tokenExample` | remplace l'exemple d'appel de la fenêtre du nouveau jeton | `application`, `token` |
+| Utilisateurs | `users.columns`, `users.rowActions` | comme pour les applications | `user` |
+| Tableau de bord | `dashboard.sections` | blocs affichés après les indicateurs ; les chiffres du domaine passent d'abord par les sections du backend (`DashboardSectionInterface` : KPIs, séries, éléments récents, activité, actions rapides), affichés génériquement | `dashboard` |
+
+Exemple : Rocket Mailer ajoute l'expéditeur de chaque application (colonne et section du formulaire, ressource `/api/application_senders/{id}` de la brique) et une action « Code d'intégration ».
+
+```ts
+// frontend/app/app.config.ts
+export default defineAppConfig({
+  rocket: {
+    embed: true,
+    extensions: {
+      applications: {
+        columns: [{ id: 'sender', header: 'Expéditeur', component: 'MailerApplicationSenderCell' }],
+        rowActions: ['MailerApplicationEmbedAction'],
+        formSections: ['MailerApplicationSender'],
+        tokenExample: 'MailerApplicationTokenExample',
+      },
+    },
+  },
+})
+```
+
+```vue
+<!-- frontend/app/components/global/MailerApplicationSender.vue : section du formulaire -->
+<script setup lang="ts">
+import type { Application } from '#rocket/types/api'
+import type { RocketApplicationFormExtension } from '#rocket/types/extensions'
+import type { ApplicationSender } from '~/types/api'
+
+const props = defineProps<{ application: Application | null }>()
+const api = useApi()
+const form = reactive({ senderName: '', senderEmail: '', allowedSenders: [] as string[] })
+// Monté à l'ouverture du formulaire : les réglages de l'application modifiée.
+onMounted(async () => {
+  if (!props.application) return
+  const sender = await api<ApplicationSender>(`/api/application_senders/${props.application.id}`)
+  Object.assign(form, { senderName: sender.senderName ?? '', senderEmail: sender.senderEmail ?? '', allowedSenders: [...sender.allowedSenders] })
+})
+
+// Appelé par la page une fois l'application créée ou modifiée (elle a alors un id).
+defineExpose<RocketApplicationFormExtension>({
+  async save(application) {
+    await api(`/api/application_senders/${application.id}`, {
+      method: 'PATCH',
+      body: { senderName: form.senderName || null, senderEmail: form.senderEmail || null, allowedSenders: form.allowedSenders },
+    })
+    await refreshNuxtData('application-senders') // la colonne
+  },
+})
+</script>
+
+<template>
+  <UFormField label="Adresse d'expédition" required>
+    <UInput v-model="form.senderEmail" type="email" class="w-full" />
+  </UFormField>
+  <UFormField label="Nom affiché">
+    <UInput v-model="form.senderName" class="w-full" />
+  </UFormField>
+  <UFormField label="Adresses d'expédition qu'elle peut imposer">
+    <UInputTags v-model="form.allowedSenders" add-on-blur add-on-paste class="w-full" />
+  </UFormField>
+</template>
+```
+
+```vue
+<!-- frontend/app/components/global/MailerApplicationEmbedAction.vue : action de chaque ligne -->
+<script setup lang="ts">
+import type { Application } from '#rocket/types/api'
+
+defineProps<{ application: Application }>()
+const open = ref(false)
+</script>
+
+<template>
+  <UButton icon="i-lucide-code-xml" color="neutral" variant="ghost" aria-label="Code d'intégration" @click="open = true" />
+  <EmbedCodeModal v-if="open" v-model:open="open" :application-id="application.id" />
+</template>
+```
+
+La colonne (`MailerApplicationSenderCell`, prop `application`) lit la liste `useAsyncData('application-senders', …)`, partagée par toutes ses cellules ; `MailerApplicationTokenExample` (props `application`, `token`) montre l'intégration du composeur au lieu de l'exemple `curl`. Le playground du layer (`nuxt/.playground/app`) en donne un exemple complet et exécutable : colonne, action, section de formulaire, action sur les utilisateurs et section du tableau de bord.
+
+### Intégration continue (workflows réutilisables)
+
+Les briques appellent les workflows de `.github/workflows/` (`workflow_call`) au lieu de recopier leurs jobs ; ce qui leur est propre reste dans des scripts de la brique.
+
+| Workflow | Rôle | Entrées (défaut) |
+|---|---|---|
+| `brick-backend.yml` | PHP 8.4, PostgreSQL 16, Composer (authentifié par le `GITHUB_TOKEN` de la brique), clés JWT, `lint:container`, `lint:yaml`, migrations, `schema:validate`, PHPUnit | `working-directory` (`backend`), `php-version` (`8.4`), `php-extensions` (`pdo_pgsql, intl, ldap, zip`), `setup-script` : script de la brique lancé avant `composer install` (services supplémentaires avec `docker run`, variables dans `$GITHUB_ENV`) |
+| `brick-frontend.yml` | Application Nuxt : `npm ci`, lint, typecheck, puis un script de build | `working-directory` (`frontend`), `node-version` (`22`), `build-script` (`build` ; `generate` pour la documentation, vide pour aucun) |
+| `brick-images.yml` | Images Docker (cible `prod`), publiées sur ghcr.io pour `main`, `develop` et les tags `v*`, sinon chargées et testées : `about`, OpenAPI et 401 de l'API, CSP de `/login` du front | `image-prefix` (nom du dépôt), `components` (JSON, api/backend et front/frontend), `api-resource` (`/api/users`), `smoke-script` : script de la brique appelé avec le composant (`IMAGE`, `API`, `FRONT` dans l'environnement). L'appelant accorde `contents: read` et `packages: write`. |
+| `brick-demo.yml` | Démo `compose.yaml` + `compose.demo.yaml` : démarrage, seed, attente du front et de son proxy `/api`, puis les scénarios de la brique ; journaux en cas d'échec | `front-url`, `docs-url`, `ready-urls` (autres adresses à attendre), `scenario-script` (`.github/demo-scenarios.sh`, lancé avec `bash -e` et `COMPOSE`, `FRONT`, `DOCS`, `APP_VERSION`) |
+
+```yaml
+# .github/workflows/ci.yml d'une brique (la référence deviendra un tag de version de rocket-core)
+jobs:
+  backend:
+    name: Backend (PHP)
+    uses: fayouz/rocket-core/.github/workflows/brick-backend.yml@main
+  frontend:
+    name: Frontend (Nuxt)
+    uses: fayouz/rocket-core/.github/workflows/brick-frontend.yml@main
+  docs:
+    name: Docs (Nuxt Content)
+    uses: fayouz/rocket-core/.github/workflows/brick-frontend.yml@main
+    with: { working-directory: docs, build-script: generate }
+  images:
+    name: Docker images
+    needs: [backend, frontend]
+    permissions: { contents: read, packages: write }
+    uses: fayouz/rocket-core/.github/workflows/brick-images.yml@main
+  demo:
+    name: Demo environment (compose)
+    needs: [backend, frontend]
+    uses: fayouz/rocket-core/.github/workflows/brick-demo.yml@main
+    with: { front-url: 'http://localhost:3100', docs-url: 'http://localhost:3101' }
+```
 
 ## Modes autonome et suite
 

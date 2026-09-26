@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 import type { Application } from '#rocket/types/api'
+import type { RocketApplicationFormExtension } from '#rocket/types/extensions'
 
 definePageMeta({ admin: true })
 const appName = useAppConfig().rocket.name
@@ -15,6 +16,13 @@ const requestUrl = useRequestURL()
 const UBadge = resolveComponent('UBadge')
 const USwitch = resolveComponent('USwitch')
 const UButton = resolveComponent('UButton')
+
+// Extension points of the brick (app.config.ts, rocket.extensions.applications): see the README.
+const extensions = useRocketExtensions('applications')
+const rowActions = resolveRocketComponents(extensions.rowActions)
+const formSections = resolveRocketComponents(extensions.formSections)
+const tokenExample = resolveRocketComponent(extensions.tokenExample)
+const help = extensions.help || "Une application s'authentifie avec son jeton (Authorization: Bearer <jeton>). Si l'impersonation est autorisée, l'en-tête X-Impersonate-User lui permet d'agir en tant qu'un utilisateur, jamais avec le rôle administrateur. Sans impersonation, elle peut seulement s'identifier (GET /api/me)."
 
 const { data: applications, status, refresh } = await useAsyncData('applications', () => api<Application[]>('/api/applications'), { default: () => [] })
 
@@ -44,6 +52,7 @@ const columns: TableColumn<Application>[] = [
     cell: ({ row }) => h(UBadge, { variant: 'subtle', color: row.original.canImpersonate ? 'warning' : 'neutral', label: row.original.canImpersonate ? 'Autorisée' : 'Non' }),
   },
   ...(embed ? [{ accessorKey: 'allowedOrigins', header: 'Origines (embed)', cell: ({ row }) => row.original.allowedOrigins.join(', ') || '—' }] as TableColumn<Application>[] : []),
+  ...resolveRocketColumns<Application>(extensions.columns, 'application'),
   { accessorKey: 'lastUsedAt', header: 'Dernier appel', cell: ({ row }) => formatDate(row.original.lastUsedAt) },
   {
     accessorKey: 'enabled',
@@ -53,6 +62,7 @@ const columns: TableColumn<Application>[] = [
   {
     id: 'actions',
     cell: ({ row }) => h('div', { class: 'flex justify-end gap-1' }, [
+      ...rowActions.map(action => h(action, { application: row.original, onRefresh: () => refresh() })),
       h(UButton, { icon: 'i-lucide-pencil', color: 'neutral', variant: 'ghost', 'aria-label': 'Modifier', onClick: () => edit(row.original) }),
       h(UButton, { icon: 'i-lucide-rotate-cw', color: 'neutral', variant: 'ghost', 'aria-label': 'Régénérer le jeton', onClick: () => (toRotate.value = row.original) }),
       h(UButton, { icon: 'i-lucide-trash-2', color: 'error', variant: 'ghost', 'aria-label': 'Supprimer', onClick: () => (toDelete.value = row.original) }),
@@ -87,21 +97,38 @@ function edit(application: Application) {
   formOpen.value = true
 }
 
+// Form sections of the brick: saved after the application itself.
+const formExtensions = useTemplateRef<(RocketApplicationFormExtension | null)[]>('formExtensions')
+async function saveExtensions(application: Application): Promise<boolean> {
+  try {
+    for (const section of formExtensions.value ?? []) await section?.save?.(application)
+    return true
+  }
+  catch (error) {
+    toast.add({ title: 'Enregistrement incomplet', description: apiErrorMessage(error), color: 'error' })
+    return false
+  }
+}
+
 async function submit() {
   const body = { ...form, description: form.description || null }
   if (editing.value) {
-    if (await patch(editing.value, body)) formOpen.value = false
+    if (await patch(editing.value, body) && await saveExtensions(editing.value)) formOpen.value = false
     return
   }
+  let created: Application
   try {
-    const created = await api<Application>('/api/applications', { method: 'POST', body })
-    formOpen.value = false
-    revealed.value = { application: created, token: created.plainToken! }
-    await refresh()
+    created = await api<Application>('/api/applications', { method: 'POST', body })
   }
   catch (error) {
     toast.add({ title: 'Création impossible', description: apiErrorMessage(error), color: 'error' })
+    return
   }
+  // Created: its token is shown once, even if a section of the brick still has to be fixed (Modifier).
+  await saveExtensions(created)
+  formOpen.value = false
+  revealed.value = { application: created, token: created.plainToken! }
+  await refresh()
 }
 
 // Secret shown once
@@ -164,7 +191,7 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
         variant="subtle"
         color="neutral"
         title="Comment ça marche"
-        description="Une application s'authentifie avec son jeton (Authorization: Bearer <jeton>). Si l'impersonation est autorisée, l'en-tête X-Impersonate-User lui permet d'agir en tant qu'un utilisateur, jamais avec le rôle administrateur. Sans impersonation, elle peut seulement s'identifier (GET /api/me)."
+        :description="help"
       />
       <UTable :data="applications" :columns="columns" :loading="status === 'pending'" empty="Aucune application." />
 
@@ -181,6 +208,7 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
             <UFormField v-if="embed" label="Origines autorisées à embarquer les pages" hint="ex. https://crm.exemple.com">
               <UInputTags v-model="form.allowedOrigins" add-on-blur add-on-paste class="w-full" />
             </UFormField>
+            <component :is="section" v-for="(section, index) in formSections" :key="index" ref="formExtensions" :application="editing" />
           </form>
         </template>
         <template #footer>
@@ -199,7 +227,8 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
               <code class="min-w-0 flex-1 break-all rounded bg-elevated p-2 text-sm">{{ revealed.token }}</code>
               <UButton icon="i-lucide-copy" color="neutral" variant="outline" aria-label="Copier" @click="copy(revealed.token)" />
             </div>
-            <div>
+            <component :is="tokenExample" v-if="tokenExample" :application="revealed.application" :token="revealed.token" />
+            <div v-else>
               <p class="mb-1 text-sm font-medium">
                 Exemple d'appel
               </p>

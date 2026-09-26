@@ -59,7 +59,7 @@ jobs:
           extensions: ${{ inputs.php-extensions }}
           coverage: none
           tools: composer:v2
-      - name: Brick setup (${{ inputs.setup-script }})
+      - name: Brick setup script
         if: inputs.setup-script != ''
         working-directory: .
         run: bash -e "$SETUP_SCRIPT"
