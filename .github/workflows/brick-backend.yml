@@ -1,0 +1,79 @@
+# Reusable workflow: the Symfony backend of a Rocket brick (built on rocket/core-bundle).
+# PHP 8.4, PostgreSQL 16, Composer (authenticated with the caller's GITHUB_TOKEN), then the checks:
+# container and YAML lint, migrations, schema validation and PHPUnit.
+#
+# Brick-specific needs (an extra service container, extra environment variables…) go in a script of the
+# brick run before the checks (input "setup-script"); it can export variables through $GITHUB_ENV.
+name: Brick backend
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory of the Symfony application.
+        type: string
+        default: backend
+      php-version:
+        type: string
+        default: '8.4'
+      php-extensions:
+        type: string
+        default: pdo_pgsql, intl, ldap, zip
+      setup-script:
+        description: >-
+          Optional script of the brick (path from the repository root), run (bash -e) from the repository root before
+          "composer install" and the checks: extra services (docker run …), variables ($GITHUB_ENV).
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: PHP ${{ inputs.php-version }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U app" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql://app:app@127.0.0.1:5432/app?serverVersion=16&charset=utf8
+      # rocket/core-bundle comes from GitHub: authenticated downloads are not rate-limited.
+      COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ secrets.GITHUB_TOKEN }}"}}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          coverage: none
+          tools: composer:v2
+      - name: Brick setup (${{ inputs.setup-script }})
+        if: inputs.setup-script != ''
+        working-directory: .
+        run: bash -e "$SETUP_SCRIPT"
+        env:
+          SETUP_SCRIPT: ${{ inputs.setup-script }}
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}
+      - run: composer install --prefer-dist --no-progress --no-interaction
+      - run: php bin/console lexik:jwt:generate-keypair --skip-if-exists
+      - run: php bin/console lint:container
+      - run: php bin/console lint:yaml config --parse-tags
+      - run: php bin/console doctrine:migrations:migrate --no-interaction
+      - run: php bin/console doctrine:schema:validate
+      - run: php bin/phpunit

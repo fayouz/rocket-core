@@ -1,0 +1,61 @@
+# Reusable workflow: the demo environment of a Rocket brick (compose.yaml + compose.demo.yaml).
+# Starts the stack, waits for the demo seed to succeed and for the front (and its /api proxy) to answer,
+# then runs the brick's scenario script (bash -e, from the repository root) with COMPOSE, FRONT, DOCS and
+# APP_VERSION in the environment. The logs of the stack are printed when something fails.
+name: Brick demo
+
+on:
+  workflow_call:
+    inputs:
+      front-url:
+        description: URL of the demo front (its port in compose.demo.yaml), e.g. http://localhost:3100.
+        type: string
+        required: true
+      docs-url:
+        description: URL of the demo documentation site, e.g. http://localhost:3101.
+        type: string
+        required: true
+      ready-urls:
+        description: Other URLs (space-separated) that must answer before the scenarios run (third-party demo hosts…).
+        type: string
+        default: ''
+      scenario-script:
+        description: Script of the brick (path from the repository root) checking the demo scenarios.
+        type: string
+        default: .github/demo-scenarios.sh
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    name: compose
+    runs-on: ubuntu-latest
+    env:
+      COMPOSE: docker compose -f compose.yaml -f compose.demo.yaml
+      # Version written in the images (build argument).
+      APP_VERSION: v0.0.0-ci
+      FRONT: ${{ inputs.front-url }}
+      DOCS: ${{ inputs.docs-url }}
+      READY_URLS: ${{ inputs.ready-urls }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the demo stack
+        run: |
+          $COMPOSE up -d --build
+          test "$(docker wait "$($COMPOSE ps -aq demo-seed)")" = 0
+          # Ready when the front answers and its /api proxy reaches the API (which starts after the front's container),
+          # and the brick's other demo hosts answer.
+          ready() {
+            curl -fsS "$FRONT/login" -o /dev/null && curl -fsS "$FRONT/api/setup" -o /dev/null || return 1
+            for url in $READY_URLS; do curl -fsS "$url" -o /dev/null || return 1; done
+          }
+          for i in $(seq 1 60); do ready && exit 0; sleep 2; done
+          echo "Front, API or demo host never became ready" && exit 1
+      - name: Check demo scenarios (${{ inputs.scenario-script }})
+        run: bash -e "$SCENARIO_SCRIPT"
+        env:
+          SCENARIO_SCRIPT: ${{ inputs.scenario-script }}
+      - name: Logs
+        if: failure()
+        run: $COMPOSE logs --no-color --tail=80

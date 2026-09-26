@@ -46,17 +46,8 @@ jobs:
 
   layer:
     name: Nuxt layer
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: nuxt
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: nuxt/package-lock.json
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
+    # The reusable workflow of the bricks' Nuxt applications, from this commit (also tests it).
+    uses: ./.github/workflows/brick-frontend.yml
+    with:
+      working-directory: nuxt
+      build-script: ''
