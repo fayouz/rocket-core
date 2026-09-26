@@ -20,7 +20,12 @@ final class Version20260925000000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->skipIf($schema->hasTable('user') && $schema->hasTable('application'), 'The core tables already exist (created by the application before rocket-core).');
+        // Recorded as executed (a skipped migration would be proposed again forever).
+        if ($schema->hasTable('user') && $schema->hasTable('application')) {
+            $this->write('The core tables already exist (created by the application before rocket-core).');
+
+            return;
+        }
         $this->addSql('CREATE TABLE application (id UUID NOT NULL, name VARCHAR(120) NOT NULL, description TEXT DEFAULT NULL, token_hash VARCHAR(64) NOT NULL, token_hint VARCHAR(16) NOT NULL, can_impersonate BOOLEAN NOT NULL, enabled BOOLEAN NOT NULL, last_used_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, created_by VARCHAR(180) DEFAULT NULL, updated_by VARCHAR(180) DEFAULT NULL, PRIMARY KEY (id))');
         $this->addSql('CREATE UNIQUE INDEX UNIQ_A45BDDC1B3BC57DA ON application (token_hash)');
         $this->addSql('CREATE TABLE authentication_server (id UUID NOT NULL, name VARCHAR(120) NOT NULL, type VARCHAR(16) NOT NULL, enabled BOOLEAN NOT NULL, url VARCHAR(255) NOT NULL, internal_url VARCHAR(255) DEFAULT \'\' NOT NULL, client_id VARCHAR(255) DEFAULT \'\' NOT NULL, client_secret TEXT DEFAULT \'\' NOT NULL, scopes VARCHAR(255) DEFAULT \'openid email profile\' NOT NULL, link_existing_accounts BOOLEAN DEFAULT false NOT NULL, start_tls BOOLEAN NOT NULL, base_dn VARCHAR(512) NOT NULL, bind_dn VARCHAR(512) NOT NULL, bind_password TEXT NOT NULL, user_filter TEXT NOT NULL, admin_group_dn VARCHAR(512) NOT NULL, attributes JSON NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, updated_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, created_by VARCHAR(180) DEFAULT NULL, updated_by VARCHAR(180) DEFAULT NULL, PRIMARY KEY (id))');

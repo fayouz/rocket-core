@@ -17,7 +17,12 @@ final class Version20260926000200 extends AbstractMigration
     public function up(Schema $schema): void
     {
         // Rocket Mailer had the column before rocket-core.
-        $this->skipIf($schema->getTable('application')->hasColumn('allowed_origins'), 'The applications already have their origins.');
+        // Recorded as executed (a skipped migration would be proposed again forever).
+        if ($schema->getTable('application')->hasColumn('allowed_origins')) {
+            $this->write('The applications already have their origins.');
+
+            return;
+        }
         $this->addSql('ALTER TABLE application ADD allowed_origins JSON DEFAULT \'[]\' NOT NULL');
         $this->addSql('ALTER TABLE application ALTER allowed_origins DROP DEFAULT');
     }

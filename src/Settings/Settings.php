@@ -41,9 +41,4 @@ final class Settings
             $this->em->remove($setting);
         }
     }
-
-    public function isPersonalFromAllowed(): bool
-    {
-        return (bool) $this->get(self::PERSONAL_FROM_ALLOWED, true);
-    }
 }

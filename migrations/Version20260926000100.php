@@ -17,7 +17,12 @@ final class Version20260926000100 extends AbstractMigration
     public function up(Schema $schema): void
     {
         // Rocket Auth had the column before rocket-core.
-        $this->skipIf($schema->getTable('user')->hasColumn('groups'), 'The users already have their groups.');
+        // Recorded as executed (a skipped migration would be proposed again forever).
+        if ($schema->getTable('user')->hasColumn('groups')) {
+            $this->write('The users already have their groups.');
+
+            return;
+        }
         $this->addSql('ALTER TABLE "user" ADD groups JSON DEFAULT \'[]\' NOT NULL');
     }
 

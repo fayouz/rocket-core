@@ -16,7 +16,12 @@ final class Version20260926140000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->skipIf($schema->getTable('user')->hasColumn('sessions_revoked_at'), 'The users already have the column.');
+        // Recorded as executed (a skipped migration would be proposed again forever).
+        if ($schema->getTable('user')->hasColumn('sessions_revoked_at')) {
+            $this->write('The users already have the column.');
+
+            return;
+        }
         $this->addSql('ALTER TABLE "user" ADD sessions_revoked_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL');
     }
 

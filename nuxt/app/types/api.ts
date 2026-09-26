@@ -49,8 +49,6 @@ export interface Application extends Tracked {
   lastUsedAt: string | null
 }
 
-/** A "{{ name }}" placeholder of a template. */
-
 /** unknown: network check not run yet (LDAP, OpenID Connect providers: every 5 minutes). */
 export type ServiceStatus = 'operational' | 'degraded' | 'down' | 'disabled' | 'unknown'
 
