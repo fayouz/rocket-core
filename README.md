@@ -36,7 +36,7 @@ rocket_core:
     resource: '@RocketCoreBundle/config/routes.php'
 ```
 
-Le bundle déclare ses entités (Doctrine et API Platform), ses routes, ses migrations (exécutées avec celles de l'application, dans l'ordre de leurs dates) et envoie les messages `Rocket\Core\Message\AsyncMessageInterface` sur le transport `async`. L'application garde son `security.yaml`, qui utilise les classes du bundle (`Rocket\Core\Entity\User`, `Rocket\Core\Security\LoginAuthenticator`, `ApplicationTokenAuthenticator`, `EmbedTokenAuthenticator`, `UserChecker`) et rend publiques `^/api/auth/login$`, `^/api/(setup|suite)$`, `^/api/embed/frame-policy$` et `^/api/auth/(providers|oidc/callback)$` (voir `tests/App/config/packages/security.yaml`).
+Le bundle déclare ses entités (Doctrine et API Platform), ses routes, ses migrations (exécutées avec celles de l'application, dans l'ordre de leurs dates) et envoie les messages `Rocket\Core\Message\AsyncMessageInterface` sur le transport `async`. L'application garde son `security.yaml`, qui utilise les classes du bundle (`Rocket\Core\Entity\User`, `Rocket\Core\Security\LoginAuthenticator`, `ApplicationTokenAuthenticator`, `EmbedTokenAuthenticator`, `UserChecker`) et rend publiques `^/api/auth/login$`, `^/api/(setup|suite)$`, `^/api/embed/frame-policy$` et `^/api/auth/(providers|oidc/callback|oidc/backchannel-logout)$` (voir `tests/App/config/packages/security.yaml`).
 
 Points d'extension, par simple implémentation d'une interface (autoconfiguration) :
 
@@ -204,7 +204,7 @@ Chaque application Rocket fonctionne **seule** ou **dans la suite**, selon sa co
 | Comptes | créés dans l'application, synchronisés depuis l'annuaire | créés à la première connexion ; utilisateurs, groupes et annuaire gérés dans Rocket Auth |
 | Administrateurs | configuration initiale, groupe LDAP | groupe `ROCKET_AUTH_ADMIN_GROUP` de Rocket Auth |
 | Menu | | sélecteur des applications de la suite, lien « Mon compte » |
-| Déconnexion | locale | locale et Rocket Auth (RP-initiated logout) |
+| Déconnexion | locale | locale et Rocket Auth (RP-initiated logout) ; Rocket Auth ferme les sessions des applications (back-channel logout) |
 
 | Variable | Rôle | Défaut |
 |---|---|---|
@@ -213,8 +213,30 @@ Chaque application Rocket fonctionne **seule** ou **dans la suite**, selon sa co
 | `ROCKET_AUTH_CLIENT_ID`, `ROCKET_AUTH_CLIENT_SECRET` | Client OpenID Connect de l'application dans Rocket Auth | `rocket-<app_id>` |
 | `ROCKET_AUTH_ADMIN_GROUP` | Groupe Rocket Auth dont les membres sont administrateurs | `rocket-admins` |
 | `ROCKET_LOCAL_LOGIN` | `1` : accès de secours par mot de passe local (comptes créés avec `app:user:create`) | `0` |
+| `ROCKET_PUBLIC_URL` | Adresse publique de l'application (son interface, qui relaie `/api`) | `FRONTEND_URL` si l'application la définit |
+| `ROCKET_INTERNAL_URL` | Adresse de l'application vue par le serveur de Rocket Auth (ex. `http://print-api` dans Docker) : Rocket Auth y envoie les déconnexions | l'adresse publique |
 
 Rocket Auth est déclaré automatiquement comme serveur d'authentification **géré** (en lecture seule dans l'administration), à la première connexion ou avec `php bin/console rocket:suite:sync`. Revenir en mode autonome le désactive et le rend aux administrateurs. `GET /api/suite` (public) décrit le mode, pour la page de connexion et le menu. La liste des applications vient de Rocket Auth (`GET /api/suite/apps`).
+
+### Déconnexion côté serveur (Back-Channel Logout)
+
+Quand un utilisateur se déconnecte de Rocket Auth, ou qu'un administrateur l'y désactive ou le supprime, Rocket Auth envoie à chaque application un jeton de déconnexion signé ([OpenID Connect Back-Channel Logout 1.0](https://openid.net/specs/openid-connect-backchannel-1_0.html)) sur `POST /api/auth/oidc/backchannel-logout` (public, paramètre `logout_token`). L'application le vérifie : signature (JWKS du serveur géré, en cache), `iss`, `aud` = son client ID, événement `http://schemas.openid.net/event/backchannel-logout`, pas de `nonce`, `iat` de moins de 5 minutes, `jti` jamais vu (cache). Elle retrouve le compte lié au sujet (`sub`) et **ferme toutes ses sessions** : `User::$sessionsRevokedAt` est renseigné et les JWT de session émis avant (`iat`) sont refusés (`SessionRevocationListener`). Les sessions ouvertes ensuite fonctionnent ; une session encore ouverte dans Rocket Auth reconnecte l'utilisateur sans qu'il ressaisisse son mot de passe. Les sessions de Rocket Auth (`sid`) ne sont pas suivies ici : toute déconnexion reçue ferme toutes les sessions du compte dans l'application.
+
+L'adresse est déclarée à Rocket Auth par l'application elle-même (`SuiteProvisioner`, à la première connexion et avec `rocket:suite:sync`) : `POST <ROCKET_AUTH_INTERNAL_URL>/oauth/suite/register`, authentifié par le secret du client, avec `backchannel_logout_uri` = `<ROCKET_INTERNAL_URL>/api/auth/oidc/backchannel-logout`. Sans adresse connue (`ROCKET_PUBLIC_URL`, `ROCKET_INTERNAL_URL`, `FRONTEND_URL`), rien n'est déclaré ; un administrateur de Rocket Auth peut la saisir sur la fiche du client. Un échec est journalisé et retenté 5 minutes plus tard.
+
+La déconnexion locale (`POST /api/auth/logout`, appelée par l'interface avant d'oublier le jeton) ne ferme que la session courante : elle émet seulement `Rocket\Core\Event\UserLoggedOutEvent`, que Rocket Auth écoute.
+
+### Appels entre applications (client credentials)
+
+En mode suite, une application en appelle une autre avec un jeton d'accès de Rocket Auth plutôt qu'avec un jeton statique :
+
+```php
+// Rocket\Core\Suite\ServiceTokenProvider : jeton obtenu par client credentials (ROCKET_AUTH_CLIENT_ID / _SECRET),
+// pour l'audience « rocket-mailer », en cache jusqu'à 30 s avant son expiration (5 minutes).
+$http->request('POST', $mailerUrl.'/api/emails', ['auth_bearer' => $tokens->tokenFor('mailer'), 'headers' => ['X-Impersonate-User' => $email], …]);
+```
+
+L'application appelée accepte `Authorization: Bearer <jeton Rocket Auth>` (`ApplicationTokenAuthenticator`, via `SuiteAccessTokens`) : signature (JWKS), `iss`, `aud` = son client ID (`rocket-<app_id>`), `exp`, et un jeton d'application seulement (`sub` = `azp` = client appelant). Le client appelant (ex. `rocket-cloud`) doit être **lié à une application** par un administrateur (champ « Client Rocket Auth » de la page Applications, `Application::$oauthClientId`) : ses droits sont ceux de cette application (impersonation avec `X-Impersonate-User`, jamais administrateur, `lastUsedAt`). Les jetons statiques restent valables (mode autonome, transition).
 
 ## Développement
 

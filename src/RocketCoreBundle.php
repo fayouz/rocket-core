@@ -115,6 +115,9 @@ final class RocketCoreBundle extends AbstractBundle
         'ROCKET_AUTH_CLIENT_SECRET' => '',
         'ROCKET_AUTH_ADMIN_GROUP' => 'rocket-admins',
         'ROCKET_LOCAL_LOGIN' => '0',
+        // Address of the brick (public, and as Rocket Auth reaches it): back-channel logout endpoint registered in Rocket Auth.
+        'ROCKET_PUBLIC_URL' => '',
+        'ROCKET_INTERNAL_URL' => '',
         'DEMO_MODE' => '0',
         'DEMO_APP_TOKEN' => '',
         'DEMO_SSO_ISSUER' => '',

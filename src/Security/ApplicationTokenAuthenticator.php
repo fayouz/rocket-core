@@ -4,7 +4,9 @@ namespace Rocket\Core\Security;
 
 use Rocket\Core\Entity\Application;
 use Rocket\Core\Entity\User;
+use Rocket\Core\Oidc\OidcException;
 use Rocket\Core\Repository\ApplicationRepository;
+use Rocket\Core\Suite\SuiteAccessTokens;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -18,7 +20,9 @@ use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPasspor
 use Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken;
 
 /**
- * Authenticates external applications with "Authorization: Bearer <prefix>…" (rocket_core.token_prefix).
+ * Authenticates external applications with "Authorization: Bearer <prefix>…" (rocket_core.token_prefix) or, in suite
+ * mode, with an access token of Rocket Auth obtained by another brick (client credentials, see SuiteAccessTokens):
+ * the application linked to that OAuth client (Application::$oauthClientId).
  * With "X-Impersonate-User: <email>", an application allowed to impersonate acts as that user,
  * without ever inheriting ROLE_ADMIN.
  */
@@ -26,21 +30,41 @@ final class ApplicationTokenAuthenticator extends AbstractAuthenticator
 {
     public const IMPERSONATE_HEADER = 'X-Impersonate-User';
 
-    public function __construct(private readonly ApplicationRepository $applications)
-    {
+    public function __construct(
+        private readonly ApplicationRepository $applications,
+        private readonly SuiteAccessTokens $suiteTokens,
+    ) {
     }
 
     public function supports(Request $request): ?bool
     {
-        return str_starts_with((string) $request->headers->get('Authorization'), 'Bearer '.Application::tokenPrefix());
+        $authorization = (string) $request->headers->get('Authorization');
+        if (!str_starts_with($authorization, 'Bearer ')) {
+            return false;
+        }
+        $token = substr($authorization, \strlen('Bearer '));
+
+        return str_starts_with($token, Application::tokenPrefix()) || $this->suiteTokens->isCandidate($token);
     }
 
     public function authenticate(Request $request): Passport
     {
         $secret = substr((string) $request->headers->get('Authorization'), \strlen('Bearer '));
-        $application = $this->applications->findOneByToken($secret);
-        if (null === $application || !$application->isEnabled()) {
-            throw new CustomUserMessageAuthenticationException('Invalid application token.');
+        if (str_starts_with($secret, Application::tokenPrefix())) {
+            $application = $this->applications->findOneByToken($secret);
+            if (null === $application || !$application->isEnabled()) {
+                throw new CustomUserMessageAuthenticationException('Invalid application token.');
+            }
+        } else {
+            try {
+                $clientId = $this->suiteTokens->verify($secret);
+            } catch (OidcException $e) {
+                throw new CustomUserMessageAuthenticationException('Invalid access token: '.$e->getMessage());
+            }
+            $application = $this->applications->findOneBy(['oauthClientId' => $clientId]);
+            if (null === $application || !$application->isEnabled()) {
+                throw new CustomUserMessageAuthenticationException(\sprintf('The application "%s" of the suite is not allowed here: an administrator must link it on the Applications page.', $clientId));
+            }
         }
 
         $impersonated = trim((string) $request->headers->get(self::IMPERSONATE_HEADER));

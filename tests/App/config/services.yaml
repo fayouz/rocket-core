@@ -8,3 +8,6 @@ services:
 
     Rocket\Core\Tests\Support\HttpMock: ~
     Rocket\Core\Tests\Support\EmbedEndpoints: ~
+    # Used by the bricks, not by the test application: kept for the tests.
+    Rocket\Core\Suite\ServiceTokenProvider:
+        public: true

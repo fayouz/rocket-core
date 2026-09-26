@@ -105,21 +105,52 @@ class OidcClient
     }
 
     /**
+     * Verifies the RS256 signature of a token issued by the provider, with its keys (JWKS, cached 10 minutes and read
+     * again once when no key matches: keys may have rotated), and returns the claims. Claims are left to the caller.
+     *
+     * @return array<string, mixed>
+     */
+    public function verifySignature(AuthenticationServer $server, string $token): array
+    {
+        try {
+            return Jwt::verify($token, $this->jwks($server));
+        } catch (OidcException $e) {
+            if (!str_contains($e->getMessage(), 'signature')) {
+                throw $e;
+            }
+
+            return Jwt::verify($token, $this->jwks($server, true));
+        }
+    }
+
+    /**
+     * The provider's signing keys (cached for 10 minutes).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function jwks(AuthenticationServer $server, bool $fresh = false): array
+    {
+        $key = 'oidc_jwks_'.hash('xxh128', $server->getUrl().'|'.$server->getInternalUrl());
+        if ($fresh) {
+            $this->cache->delete($key);
+        }
+
+        return $this->cache->get($key, function (ItemInterface $item) use ($server): array {
+            $item->expiresAfter(600);
+            $keys = $this->getJson($this->internalize((string) $this->discover($server)['jwks_uri'], $server->getUrl(), $server->getInternalUrl()))['keys'] ?? [];
+
+            return \is_array($keys) ? array_values(array_filter($keys, 'is_array')) : [];
+        });
+    }
+
+    /**
      * @param array<string, mixed> $metadata
      *
      * @return array<string, mixed>
      */
     private function verifyIdToken(AuthenticationServer $server, array $metadata, string $idToken, ?string $nonce): array
     {
-        $jwksUri = $this->internalize((string) $metadata['jwks_uri'], $server->getUrl(), $server->getInternalUrl());
-        $keys = $this->getJson($jwksUri)['keys'] ?? [];
-        try {
-            $claims = Jwt::verify($idToken, \is_array($keys) ? array_values(array_filter($keys, 'is_array')) : []);
-        } catch (OidcException) {
-            // Keys may have rotated: read them once more.
-            $keys = $this->getJson($jwksUri)['keys'] ?? [];
-            $claims = Jwt::verify($idToken, \is_array($keys) ? array_values(array_filter($keys, 'is_array')) : []);
-        }
+        $claims = $this->verifySignature($server, $idToken);
 
         $now = time();
         $audience = (array) ($claims['aud'] ?? []);

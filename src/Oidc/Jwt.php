@@ -24,10 +24,11 @@ final class Jwt
 
     /**
      * @param array<string, mixed> $claims
+     * @param string               $type   "typ" header, e.g. "logout+jwt" for a back-channel logout token
      */
-    public static function sign(array $claims, \OpenSSLAsymmetricKey $privateKey, string $kid): string
+    public static function sign(array $claims, \OpenSSLAsymmetricKey $privateKey, string $kid, string $type = 'JWT'): string
     {
-        $header = self::base64UrlEncode(json_encode(['alg' => 'RS256', 'typ' => 'JWT', 'kid' => $kid], \JSON_THROW_ON_ERROR));
+        $header = self::base64UrlEncode(json_encode(['alg' => 'RS256', 'typ' => $type, 'kid' => $kid], \JSON_THROW_ON_ERROR));
         $payload = self::base64UrlEncode(json_encode($claims, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE));
         if (!openssl_sign($header.'.'.$payload, $signature, $privateKey, \OPENSSL_ALGO_SHA256)) {
             throw new OidcException('The token cannot be signed.');

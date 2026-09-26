@@ -16,6 +16,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 final class SuiteSettings
 {
     public const PROVIDER_NAME = 'Rocket Auth';
+    /** Where Rocket Auth sends the logout tokens (OpenID Connect Back-Channel Logout), under the brick's address. */
+    public const BACKCHANNEL_LOGOUT_PATH = '/api/auth/oidc/backchannel-logout';
 
     public function __construct(
         #[Autowire(env: 'ROCKET_AUTH_URL')] private readonly string $authUrl,
@@ -26,6 +28,10 @@ final class SuiteSettings
         #[Autowire(env: 'bool:ROCKET_LOCAL_LOGIN')] private readonly bool $localLogin,
         #[Autowire(param: 'rocket_core.app_id')] private readonly string $appId,
         #[Autowire(param: 'rocket_core.app_name')] private readonly string $appName,
+        #[Autowire(env: 'ROCKET_PUBLIC_URL')] private readonly string $publicUrl = '',
+        #[Autowire(env: 'ROCKET_INTERNAL_URL')] private readonly string $internalUrl = '',
+        // Most bricks already know the address of their interface (links in emails…), which proxies /api.
+        #[Autowire('%env(default::FRONTEND_URL)%')] private readonly ?string $frontendUrl = null,
     ) {
     }
 
@@ -75,5 +81,27 @@ final class SuiteSettings
     public function appName(): string
     {
         return $this->appName;
+    }
+
+    /** Public address of this brick (its interface, which proxies /api): ROCKET_PUBLIC_URL, else FRONTEND_URL. */
+    public function publicUrl(): string
+    {
+        $url = '' !== trim($this->publicUrl) ? $this->publicUrl : (string) $this->frontendUrl;
+
+        return rtrim(trim($url), '/');
+    }
+
+    /** Address of this brick as Rocket Auth's server reaches it (e.g. http://cloud-api inside Docker); else the public one. */
+    public function internalUrl(): string
+    {
+        return '' !== trim($this->internalUrl) ? rtrim(trim($this->internalUrl), '/') : $this->publicUrl();
+    }
+
+    /** The back-channel logout endpoint of this brick, as registered in Rocket Auth; null when the brick has no known address. */
+    public function backchannelLogoutUri(): ?string
+    {
+        $base = $this->internalUrl();
+
+        return preg_match('#^https?://#i', $base) ? $base.self::BACKCHANNEL_LOGOUT_PATH : null;
     }
 }

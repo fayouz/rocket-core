@@ -57,6 +57,10 @@ export function useAuth() {
    * redirect = false: only forgets the session (e.g. an expired token on a public page).
    */
   async function logout(redirect = true) {
+    // Tells the API (e.g. Rocket Auth ends the sign-ins of this session in the suite); the session ends anyway.
+    if (token.value && !embedToken.value) {
+      await $fetch('/api/auth/logout', { baseURL: config.public.apiBase, method: 'POST', headers: { Authorization: `Bearer ${token.value}` } }).catch(() => {})
+    }
     setToken(null)
     me.value = null
     if (!redirect) return

@@ -12,14 +12,18 @@ use Rocket\Core\Repository\ApplicationRepository;
 use Rocket\Core\State\ApplicationCreateProcessor;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * An external application authenticated by a secret token, optionally allowed to act on behalf of users.
+ * In suite mode, another brick may also authenticate with an access token of Rocket Auth (client credentials) when an
+ * administrator linked it here through its OAuth client ID (see Rocket\Core\Suite\SuiteAccessTokens).
  */
 #[ORM\Entity(repositoryClass: ApplicationRepository::class)]
+#[UniqueEntity('oauthClientId', message: 'Another application is already linked to this OAuth client.')]
 #[ApiResource(
     operations: [
         new GetCollection(),
@@ -83,6 +87,13 @@ class Application
     #[Assert\All([new Assert\Regex(pattern: '#^https?://[a-z0-9.\-]+(:\d+)?$#i', message: 'Each origin must look like https://example.com[:port].')])]
     #[Groups(['app:read', 'app:write'])]
     private array $allowedOrigins = [];
+
+    /** Suite mode: the Rocket Auth client (e.g. "rocket-cloud") whose client-credentials tokens authenticate as this application. */
+    #[ORM\Column(length: 80, unique: true, nullable: true)]
+    #[Assert\Length(max: 80)]
+    #[Assert\Regex(pattern: '/^[A-Za-z0-9._-]+$/', message: 'Letters, digits, ".", "_" and "-" only.')]
+    #[Groups(['app:read', 'app:write'])]
+    private ?string $oauthClientId = null;
 
     #[ORM\Column]
     #[Groups(['app:read', 'app:write'])]
@@ -212,5 +223,17 @@ class Application
     public function getLastUsedAt(): ?\DateTimeImmutable
     {
         return $this->lastUsedAt;
+    }
+
+    public function getOauthClientId(): ?string
+    {
+        return $this->oauthClientId;
+    }
+
+    public function setOauthClientId(?string $oauthClientId): static
+    {
+        $this->oauthClientId = '' === trim((string) $oauthClientId) ? null : trim((string) $oauthClientId);
+
+        return $this;
     }
 }

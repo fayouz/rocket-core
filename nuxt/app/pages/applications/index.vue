@@ -7,6 +7,9 @@ definePageMeta({ admin: true })
 const appName = useAppConfig().rocket.name
 // Pages the applications may embed (iframe on /embed/…): only for the bricks that have some.
 const embed = useAppConfig().rocket.embed
+// Suite mode: other bricks call with an access token of Rocket Auth, linked here by their OAuth client ID.
+const { isSuite, load: loadSuite } = useSuite()
+await loadSuite()
 useHead({ title: `Applications · ${appName}` })
 
 const api = useApi()
@@ -46,6 +49,7 @@ const columns: TableColumn<Application>[] = [
       h('p', { class: 'font-mono text-xs text-muted' }, `${row.original.tokenHint}…`),
     ]),
   },
+  ...(isSuite.value ? [{ accessorKey: 'oauthClientId', header: 'Client Rocket Auth', cell: ({ row }) => row.original.oauthClientId ? h('span', { class: 'font-mono text-sm' }, row.original.oauthClientId) : '—' }] as TableColumn<Application>[] : []),
   {
     accessorKey: 'canImpersonate',
     header: 'Impersonation',
@@ -73,11 +77,11 @@ const columns: TableColumn<Application>[] = [
 // Create / edit
 const formOpen = ref(false)
 const editing = ref<Application | null>(null)
-const form = reactive({ name: '', description: '', canImpersonate: true, allowedOrigins: [] as string[] })
+const form = reactive({ name: '', description: '', canImpersonate: true, allowedOrigins: [] as string[], oauthClientId: '' })
 
 function create() {
   editing.value = null
-  Object.assign(form, { name: '', description: '', canImpersonate: true, allowedOrigins: [] })
+  Object.assign(form, { name: '', description: '', canImpersonate: true, allowedOrigins: [], oauthClientId: '' })
   formOpen.value = true
 }
 
@@ -93,6 +97,7 @@ function edit(application: Application) {
     description: application.description ?? '',
     canImpersonate: application.canImpersonate,
     allowedOrigins: [...application.allowedOrigins],
+    oauthClientId: application.oauthClientId ?? '',
   })
   formOpen.value = true
 }
@@ -111,7 +116,7 @@ async function saveExtensions(application: Application): Promise<boolean> {
 }
 
 async function submit() {
-  const body = { ...form, description: form.description || null }
+  const body = { ...form, description: form.description || null, oauthClientId: form.oauthClientId.trim() || null }
   if (editing.value) {
     if (await patch(editing.value, body) && await saveExtensions(editing.value)) formOpen.value = false
     return
@@ -193,6 +198,14 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
         title="Comment ça marche"
         :description="help"
       />
+      <UAlert
+        v-if="isSuite"
+        icon="i-lucide-link"
+        variant="subtle"
+        color="neutral"
+        title="Briques de la suite"
+        description="Les autres briques de la suite Rocket appellent l'API avec un jeton d'accès de Rocket Auth plutôt qu'avec un jeton statique. Déclarez-les comme applications et renseignez leur client Rocket Auth (ex. rocket-cloud) : vous décidez ainsi qui peut appeler cette brique, et si elle peut agir en tant qu'utilisateur."
+      />
       <UTable :data="applications" :columns="columns" :loading="status === 'pending'" empty="Aucune application." />
 
       <UModal v-model:open="formOpen" :title="editing ? `Modifier ${editing.name}` : 'Nouvelle application'">
@@ -207,6 +220,14 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
             <USwitch v-model="form.canImpersonate" :label="embed ? 'Peut agir en tant qu\'utilisateur (impersonation + embed)' : 'Peut agir en tant qu\'utilisateur (impersonation)'" />
             <UFormField v-if="embed" label="Origines autorisées à embarquer les pages" hint="ex. https://crm.exemple.com">
               <UInputTags v-model="form.allowedOrigins" add-on-blur add-on-paste class="w-full" />
+            </UFormField>
+            <UFormField
+              v-if="isSuite || form.oauthClientId"
+              label="Client Rocket Auth"
+              hint="ex. rocket-cloud"
+              help="Une brique de la suite enregistrée sous ce client ID dans Rocket Auth appelle l'API avec un jeton d'accès de Rocket Auth (client credentials), sans jeton statique. Elle obtient les droits de cette application."
+            >
+              <UInput v-model="form.oauthClientId" class="w-full font-mono" placeholder="rocket-…" />
             </UFormField>
             <component :is="section" v-for="(section, index) in formSections" :key="index" ref="formExtensions" :application="editing" />
           </form>

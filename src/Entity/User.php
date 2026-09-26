@@ -105,6 +105,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(['user:read', 'user:write'])]
     private bool $enabled = true;
 
+    /**
+     * Sessions opened before this instant are refused (see SessionRevocationListener): set when the identity provider
+     * signs the user out (OpenID Connect Back-Channel Logout). Precision: the second, like the "iat" claim.
+     */
+    #[ORM\Column(nullable: true)]
+    #[Groups(['user:read'])]
+    private ?\DateTimeImmutable $sessionsRevokedAt = null;
+
     use TrackedTrait;
 
     public function __construct()
@@ -293,5 +301,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->groups = array_values(array_unique(array_filter(array_map('trim', $groups), static fn (string $g) => '' !== $g)));
 
         return $this;
+    }
+
+    public function getSessionsRevokedAt(): ?\DateTimeImmutable
+    {
+        return $this->sessionsRevokedAt;
+    }
+
+    /** Ends every session opened so far (session JWTs issued before this second). */
+    public function revokeSessions(\DateTimeImmutable $at = new \DateTimeImmutable()): static
+    {
+        $this->sessionsRevokedAt = $at->setTime((int) $at->format('H'), (int) $at->format('i'), (int) $at->format('s'));
+
+        return $this;
+    }
+
+    /** Whether a session JWT issued at this timestamp ("iat") was revoked since. */
+    public function isSessionRevoked(int $issuedAt): bool
+    {
+        return null !== $this->sessionsRevokedAt && $issuedAt < $this->sessionsRevokedAt->getTimestamp();
     }
 }

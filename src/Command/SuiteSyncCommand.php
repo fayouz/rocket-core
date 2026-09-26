@@ -25,6 +25,14 @@ final class SuiteSyncCommand
             $io->success('Standalone mode: accounts are managed by this application.');
         } else {
             $io->success(\sprintf('Suite mode: sign-in through %s (%s, client "%s").', $server->getName(), $server->getUrl(), $server->getClientId()));
+            $uri = $this->provisioner->register(true);
+            if (null !== $uri) {
+                $io->success(\sprintf('Back-channel logout endpoint declared to Rocket Auth: %s', $uri));
+            } elseif (null === $this->suite->backchannelLogoutUri()) {
+                $io->warning('No address for this application (ROCKET_PUBLIC_URL, ROCKET_INTERNAL_URL or FRONTEND_URL): Rocket Auth cannot sign users out of it (back-channel logout).');
+            } else {
+                $io->warning('The back-channel logout endpoint could not be declared to Rocket Auth: see the logs.');
+            }
         }
 
         return Command::SUCCESS;

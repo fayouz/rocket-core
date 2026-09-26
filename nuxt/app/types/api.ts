@@ -22,6 +22,8 @@ export interface User extends UserSummary, Tracked {
   ldapDn: string | null
   ldapSyncedAt: string | null
   enabled: boolean
+  /** Sessions opened before were ended by the identity provider (back-channel logout). */
+  sessionsRevokedAt: string | null
 }
 
 export interface Me {
@@ -41,6 +43,8 @@ export interface Application extends Tracked {
   canImpersonate: boolean
   /** Origins allowed to embed the application's pages (/embed/…). */
   allowedOrigins: string[]
+  /** Suite mode: the Rocket Auth client (e.g. "rocket-cloud") whose access tokens authenticate as this application. */
+  oauthClientId: string | null
   enabled: boolean
   lastUsedAt: string | null
 }
