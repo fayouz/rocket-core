@@ -215,6 +215,8 @@ La brique rend `/api/theme` public dans son `security.yaml` (avant la règle `^/
 
 Chaque application Rocket fonctionne **seule** ou **dans la suite**, selon sa configuration. Le mécanisme est ici, le choix appartient à chaque application.
 
+Pour voir les briques ensemble (et chaque brique seule), en local ou dans un Codespace : dépôt [rocket-suite](https://github.com/fayouz/rocket-suite).
+
 | | Autonome (par défaut) | Suite (`ROCKET_AUTH_URL` renseignée) |
 |---|---|---|
 | Connexion | comptes locaux, LDAP, fournisseurs OpenID Connect déclarés par les administrateurs | par **Rocket Auth** uniquement, directement depuis la page de connexion |
