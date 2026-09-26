@@ -45,6 +45,8 @@ export interface Application extends Tracked {
   allowedOrigins: string[]
   /** Suite mode: the Rocket Auth client (e.g. "rocket-cloud") whose access tokens authenticate as this application. */
   oauthClientId: string | null
+  /** Colors of the pages it embeds (/embed/…); null: the project's palette. Written as an IRI. */
+  palette: { '@id': string, id: string, name: string } | null
   enabled: boolean
   lastUsedAt: string | null
 }
@@ -303,4 +305,28 @@ export interface SuiteInfo {
   localLogin: boolean
   auth: { name: string, url: string, /** Interface of Rocket Auth ("Mon compte"). */ accountUrl: string, providerId: string, logoutUrl: string | null } | null
   apps: SuiteApp[]
+}
+
+/** A color palette (/api/color_palettes, administrators): "#rrggbb" per semantic color (null: default), and the grays. */
+export interface ColorPalette extends Tracked {
+  id: string
+  name: string
+  primary: string
+  secondary: string | null
+  success: string | null
+  info: string | null
+  warning: string | null
+  error: string | null
+  neutral: import('../utils/palette').Neutral
+}
+
+/** Public GET /api/theme?app=<id>: the palette to apply; null: the brick's default colors (app.config.ts). */
+export interface ThemeResponse {
+  source: 'application' | 'project' | 'default'
+  palette: import('../utils/palette').ThemePalette | null
+}
+
+/** GET/PUT /api/theme/project (administrators). */
+export interface ProjectTheme {
+  palette: import('../utils/palette').ThemePalette | null
 }

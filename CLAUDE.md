@@ -6,6 +6,7 @@ Socle commun des briques du Middleware Rocket (Mailer, Auth, Cloud, Print, bient
 - Extension par interfaces : `Dashboard\DashboardSectionInterface`, `Health\ServiceProbeInterface`, `Command\DemoSeederInterface`, `Scheduler\RecurringTaskProviderInterface`, `Embed\EmbedEndpointsInterface`. Front : `rocket.extensions` (`nuxt/app/types/extensions.ts`, `useRocketExtensions`).
 - Modes autonome / suite (`ROCKET_AUTH_URL`) : `src/Suite`, `src/Oidc`, back-channel logout, jetons client credentials (`ServiceTokenProvider`, `SuiteAccessTokens`).
 - Application de test : `tests/App` (Kernel, config, `bin/console`) ; tests `tests/Functional`, `tests/Integration`.
+- Thèmes : `ColorPalette`, `Theme\ProjectTheme` (réglage `theme.palette`), `Application::$palette`, `GET /api/theme` public ; front `plugins/theme.client.ts`, `useTheme`, `utils/palette.ts`, `pages/palettes.vue`, `ColorModeSwitch`.
 - `suite/` : les briques ensemble (compose + e2e Playwright), workflow `Suite`.
 - `.github/workflows/brick-*.yml` : workflows réutilisables appelés par les briques (`@vX.Y.Z`).
 

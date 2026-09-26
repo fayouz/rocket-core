@@ -194,6 +194,23 @@ jobs:
     with: { front-url: 'http://localhost:3100', docs-url: 'http://localhost:3101' }
 ```
 
+## Thèmes et palettes
+
+- **Clair, sombre ou système** : bouton (`ColorModeSwitch`) en bas du menu et en haut à droite des pages de connexion et de configuration initiale ; choix gardé dans le navigateur. Les pages embarquées (`/embed/…`) n'ont pas de bouton et suivent le système.
+- **Palettes** (Administration → Palettes, `pages/palettes.vue`) : couleur principale obligatoire, secondaire, succès, information, avertissement et erreur facultatives (`#rrggbb`), et le ton des gris (`slate`, `gray`, `zinc`, `neutral`, `stone`). Les nuances 50 à 950 sont calculées par le front (`utils/palette.ts`, OKLCH) ; aperçu avant d'enregistrer.
+- **Palette du projet** : bouton « Utiliser pour le projet » de la page Palettes ; « Couleurs par défaut » revient à celles de `app.config.ts` (`ui.colors`). Elle habille toute la brique, page de connexion comprise.
+- **Palette d'une application** : champ de la page Applications (briques avec `rocket.embed`), appliquée aux pages qu'elle embarque ; vide ou supprimée, celle du projet.
+- Le plugin `theme.client.ts` lit `GET /api/theme` (public ; `?app=<id>` sur `/embed/…`) avant la première page ; `useTheme()` recharge (`load()`) après un changement.
+
+| Méthode | Endpoint | Rôle |
+|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/color_palettes[/{id}]` | Palettes (administrateurs) |
+| `GET`, `PUT` | `/api/theme/project` | Palette du projet `{ "palette": "/api/color_palettes/{id}" }`, `""` pour les couleurs par défaut |
+| `PATCH` | `/api/applications/{id}` | `{ "palette": "/api/color_palettes/{id}" }`, `null` pour celle du projet |
+| `GET` | `/api/theme?app={id}` | Public : `{ source: application\|project\|default, palette }` |
+
+La brique rend `/api/theme` public dans son `security.yaml` (avant la règle `^/api`) : `- { path: ^/api/theme$, roles: PUBLIC_ACCESS }`. Sans cette règle, le front garde ses couleurs par défaut.
+
 ## Modes autonome et suite
 
 Chaque application Rocket fonctionne **seule** ou **dans la suite**, selon sa configuration. Le mécanisme est ici, le choix appartient à chaque application.

@@ -11,6 +11,10 @@ watch(() => auth.me.value, (me) => {
 
 const { info: suite, isSuite } = useSuite()
 
+// Back from an embedded page (application's palette): the project's one.
+const theme = useTheme()
+if (theme.application.value) theme.load(null)
+
 // Suite mode: the other applications of the suite, and the accounts managed in Rocket Auth.
 const switcher = computed(() => [
   (suite.value?.apps ?? []).map(other => ({
@@ -36,6 +40,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
         // Suite mode: sign-in is Rocket Auth's (managed from the configuration).
         ...(isSuite.value ? [] : [{ label: 'Serveurs d’authentification', icon: 'i-lucide-shield-check', to: '/authentication-servers' }]),
         { label: 'Applications', icon: 'i-lucide-key-round', to: '/applications' },
+        { label: 'Palettes', icon: 'i-lucide-palette', to: '/palettes' },
         { label: 'Mises à jour', icon: updateAvailable.value ? 'i-lucide-circle-arrow-up' : 'i-lucide-refresh-cw', to: '/updates' },
       ]
     : [],
@@ -84,6 +89,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
               size="sm"
               class="min-w-0 flex-1"
             />
+            <ColorModeSwitch v-if="!collapsed" />
             <UButton
               icon="i-lucide-log-out"
               color="neutral"
