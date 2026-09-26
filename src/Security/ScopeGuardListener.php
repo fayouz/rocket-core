@@ -26,6 +26,7 @@ final class ScopeGuardListener
     private const EMBED_ALLOWED = [
         ['GET', '#^/api/me$#'],
         ['GET', '#^/api/embed/context$#'],
+        ['GET', '#^/api/theme$#'],
     ];
 
     /** @param iterable<EmbedEndpointsInterface> $embedEndpoints */

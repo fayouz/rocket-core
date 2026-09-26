@@ -14,6 +14,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -94,6 +95,12 @@ class Application
     #[Assert\Regex(pattern: '/^[A-Za-z0-9._-]+$/', message: 'Letters, digits, ".", "_" and "-" only.')]
     #[Groups(['app:read', 'app:write'])]
     private ?string $oauthClientId = null;
+
+    /** Colors of the pages it embeds (/embed/…); null: the project's palette. Written as an IRI. */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    #[Groups(['app:write'])]
+    private ?ColorPalette $palette = null;
 
     #[ORM\Column]
     #[Groups(['app:read', 'app:write'])]
@@ -235,5 +242,29 @@ class Application
         $this->oauthClientId = '' === trim((string) $oauthClientId) ? null : trim((string) $oauthClientId);
 
         return $this;
+    }
+
+    public function getPalette(): ?ColorPalette
+    {
+        return $this->palette;
+    }
+
+    public function setPalette(?ColorPalette $palette): static
+    {
+        $this->palette = $palette;
+
+        return $this;
+    }
+
+    /** @return array{'@id': string, id: string, name: string}|null the palette as read (null values are left out) */
+    #[Groups(['app:read'])]
+    #[SerializedName('palette')]
+    public function getPaletteSummary(): ?array
+    {
+        return null === $this->palette ? null : [
+            '@id' => '/api/color_palettes/'.$this->palette->getId(),
+            'id' => (string) $this->palette->getId(),
+            'name' => $this->palette->getName(),
+        ];
     }
 }

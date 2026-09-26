@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
-import type { Application } from '#rocket/types/api'
+import type { Application, ColorPalette } from '#rocket/types/api'
 import type { RocketApplicationFormExtension } from '#rocket/types/extensions'
 
 definePageMeta({ admin: true })
@@ -29,7 +29,14 @@ const help = extensions.help || "Une application s'authentifie avec son jeton (A
 
 const { data: applications, status, refresh } = await useAsyncData('applications', () => api<Application[]>('/api/applications'), { default: () => [] })
 
-async function patch(application: Application, body: Partial<Application>) {
+// Colors of its embedded pages (bricks with embed only); 'project': the project's palette.
+const { data: palettes } = await useAsyncData('applications-palettes', () => embed ? api<ColorPalette[]>('/api/color_palettes') : Promise.resolve([]), { default: () => [] })
+const paletteItems = computed(() => [
+  { label: 'Palette du projet', value: 'project' },
+  ...palettes.value.map(palette => ({ label: palette.name, value: `/api/color_palettes/${palette.id}` })),
+])
+
+async function patch(application: Application, body: Record<string, unknown>) {
   try {
     Object.assign(application, await api<Application>(`/api/applications/${application.id}`, { method: 'PATCH', body }))
     return true
@@ -55,7 +62,12 @@ const columns: TableColumn<Application>[] = [
     header: 'Impersonation',
     cell: ({ row }) => h(UBadge, { variant: 'subtle', color: row.original.canImpersonate ? 'warning' : 'neutral', label: row.original.canImpersonate ? 'Autorisée' : 'Non' }),
   },
-  ...(embed ? [{ accessorKey: 'allowedOrigins', header: 'Origines (embed)', cell: ({ row }) => row.original.allowedOrigins.join(', ') || '—' }] as TableColumn<Application>[] : []),
+  ...(embed
+    ? [
+        { accessorKey: 'allowedOrigins', header: 'Origines (embed)', cell: ({ row }) => row.original.allowedOrigins.join(', ') || '—' },
+        { accessorKey: 'palette', header: 'Palette', cell: ({ row }) => row.original.palette?.name ?? h('span', { class: 'text-muted' }, 'Projet') },
+      ] as TableColumn<Application>[]
+    : []),
   ...resolveRocketColumns<Application>(extensions.columns, 'application'),
   { accessorKey: 'lastUsedAt', header: 'Dernier appel', cell: ({ row }) => formatDate(row.original.lastUsedAt) },
   {
@@ -77,11 +89,11 @@ const columns: TableColumn<Application>[] = [
 // Create / edit
 const formOpen = ref(false)
 const editing = ref<Application | null>(null)
-const form = reactive({ name: '', description: '', canImpersonate: true, allowedOrigins: [] as string[], oauthClientId: '' })
+const form = reactive({ name: '', description: '', canImpersonate: true, allowedOrigins: [] as string[], oauthClientId: '', palette: 'project' })
 
 function create() {
   editing.value = null
-  Object.assign(form, { name: '', description: '', canImpersonate: true, allowedOrigins: [], oauthClientId: '' })
+  Object.assign(form, { name: '', description: '', canImpersonate: true, allowedOrigins: [], oauthClientId: '', palette: 'project' })
   formOpen.value = true
 }
 
@@ -98,6 +110,7 @@ function edit(application: Application) {
     canImpersonate: application.canImpersonate,
     allowedOrigins: [...application.allowedOrigins],
     oauthClientId: application.oauthClientId ?? '',
+    palette: application.palette?.['@id'] ?? 'project',
   })
   formOpen.value = true
 }
@@ -116,7 +129,7 @@ async function saveExtensions(application: Application): Promise<boolean> {
 }
 
 async function submit() {
-  const body = { ...form, description: form.description || null, oauthClientId: form.oauthClientId.trim() || null }
+  const body = { ...form, description: form.description || null, oauthClientId: form.oauthClientId.trim() || null, palette: form.palette === 'project' ? null : form.palette }
   if (editing.value) {
     if (await patch(editing.value, body) && await saveExtensions(editing.value)) formOpen.value = false
     return
@@ -220,6 +233,9 @@ curl ${config.public.apiBase || requestUrl.origin}/api/me \
             <USwitch v-model="form.canImpersonate" :label="embed ? 'Peut agir en tant qu\'utilisateur (impersonation + embed)' : 'Peut agir en tant qu\'utilisateur (impersonation)'" />
             <UFormField v-if="embed" label="Origines autorisées à embarquer les pages" hint="ex. https://crm.exemple.com">
               <UInputTags v-model="form.allowedOrigins" add-on-blur add-on-paste class="w-full" />
+            </UFormField>
+            <UFormField v-if="embed" label="Palette des pages embarquées" hint="Par défaut : celle du projet">
+              <USelect v-model="form.palette" :items="paletteItems" class="w-full" data-testid="application-palette" />
             </UFormField>
             <UFormField
               v-if="isSuite || form.oauthClientId"
