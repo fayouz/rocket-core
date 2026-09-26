@@ -1,7 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'bare' })
 const app = useAppConfig().rocket
-useHead({ title: `Connexion · ${app.name}` })
+const { t } = useRocketI18n()
+useHead({ title: () => `${t('login.title')} · ${app.name}` })
 
 const auth = useAuth()
 const route = useRoute()
@@ -62,25 +63,25 @@ async function submit() {
           {{ app.name }}
         </div>
         <p class="mt-1 text-sm text-muted">
-          {{ app.tagline }}
+          {{ app.tagline ? t(app.tagline) : t('login.tagline') }}
         </p>
       </template>
 
       <template v-if="isSuite">
-        <UAlert v-if="route.query.logged_out" color="success" variant="subtle" icon="i-lucide-log-out" description="Vous êtes déconnecté." class="mb-4" />
+        <UAlert v-if="route.query.logged_out" color="success" variant="subtle" icon="i-lucide-log-out" :description="t('login.loggedOut')" class="mb-4" />
         <UButton
           v-if="suiteProvider"
-          :label="`Se connecter avec ${suite?.auth?.name}`"
+          :label="t('login.signInWith', { name: suite?.auth?.name })"
           icon="i-lucide-shield-check"
           size="lg"
           block
           :loading="redirecting === suiteProvider.id"
           @click="signInWith(suiteProvider)"
         />
-        <UAlert v-else color="warning" variant="subtle" icon="i-lucide-cloud-off" :description="`${suite?.auth?.name ?? 'Rocket Auth'} est injoignable pour le moment. Réessayez dans un instant.`" />
+        <UAlert v-else color="warning" variant="subtle" icon="i-lucide-cloud-off" :description="t('login.unreachable', { name: suite?.auth?.name ?? 'Rocket Auth' })" />
         <p v-if="suite?.localLogin && !showLocalForm" class="mt-4 text-center text-xs text-muted">
           <ULink :to="{ path: '/login', query: { ...route.query, local: '1' } }" class="underline">
-            Accès de secours (mot de passe local)
+            {{ t('login.emergency') }}
           </ULink>
         </p>
       </template>
@@ -89,7 +90,7 @@ async function submit() {
         <UButton
           v-for="provider in providers"
           :key="provider.id"
-          :label="`Se connecter avec ${provider.name}`"
+          :label="t('login.signInWith', { name: provider.name })"
           icon="i-lucide-shield-check"
           color="neutral"
           variant="outline"
@@ -97,18 +98,18 @@ async function submit() {
           :loading="redirecting === provider.id"
           @click="signInWith(provider)"
         />
-        <USeparator label="ou" class="my-2" />
+        <USeparator :label="t('login.or')" class="my-2" />
       </div>
 
       <form v-if="showLocalForm" class="flex flex-col gap-4" :class="{ 'mt-4': isSuite }" @submit.prevent="submit">
-        <UFormField label="Email" required>
+        <UFormField :label="t('common.email')" required>
           <UInput v-model="state.email" type="email" autocomplete="username" class="w-full" autofocus />
         </UFormField>
-        <UFormField label="Mot de passe" required>
+        <UFormField :label="t('common.password')" required>
           <UInput v-model="state.password" type="password" autocomplete="current-password" class="w-full" />
         </UFormField>
         <UAlert v-if="error" color="error" variant="subtle" :description="error" icon="i-lucide-circle-alert" />
-        <UButton type="submit" label="Se connecter" block :loading="loading" />
+        <UButton type="submit" :label="t('login.submit')" block :loading="loading" />
       </form>
     </UCard>
   </div>

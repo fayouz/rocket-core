@@ -1,8 +1,19 @@
 <script setup lang="ts">
-const quotes = useAppConfig().rocket.quotes
+const { t, locale } = useRocketI18n()
+
+const configuredQuotes = useAppConfig().rocket.quotes
+// Layer default quotes, used when the brick has not configured any.
+const defaultQuotes = computed<[string, string][]>(() => [
+  [t('dashboard.quote1'), t('dashboard.author1')],
+  [t('dashboard.quote2'), t('dashboard.author2')],
+  [t('dashboard.quote3'), t('dashboard.author3')],
+])
+const quotes = computed(() => configuredQuotes.length ? configuredQuotes : defaultQuotes.value)
 
 // One quote per day, stable across refreshes.
-const [quote, author] = quotes[Math.floor(Date.now() / 86_400_000) % quotes.length] ?? ['', '']
+const dailyQuote = computed(() => quotes.value[Math.floor(Date.now() / 86_400_000) % quotes.value.length] ?? ['', ''])
+const quote = computed(() => dailyQuote.value[0])
+const author = computed(() => dailyQuote.value[1])
 </script>
 
 <template>
@@ -28,7 +39,7 @@ const [quote, author] = quotes[Math.floor(Date.now() / 86_400_000) % quotes.leng
     </svg>
     <figure class="relative flex h-full max-w-[65%] flex-col justify-center gap-1 p-5">
       <blockquote class="text-sm font-medium italic text-highlighted sm:text-base">
-        « {{ quote }} »
+        {{ locale === 'fr' ? `« ${quote} »` : `“${quote}”` }}
       </blockquote>
       <figcaption class="text-xs text-muted">
         — {{ author }}

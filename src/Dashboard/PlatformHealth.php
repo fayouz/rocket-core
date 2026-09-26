@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Dashboard;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Rocket\Core\Entity\ServiceCheck;
 use Rocket\Core\Health\HealthChecker;
 use Rocket\Core\Health\ServiceProbeInterface;
@@ -39,6 +41,7 @@ final class PlatformHealth
         /** @var iterable<ServiceProbeInterface> */
         #[AutowireIterator('app.service_probe')]
         private readonly iterable $probes = [],
+        private readonly ?CoreMessages $messages = null,
     ) {
     }
 
@@ -80,12 +83,12 @@ final class PlatformHealth
             $this->db->fetchOne('SELECT 1');
             $version = $this->db->fetchOne('SHOW server_version');
         } catch (\Throwable) {
-            return ['id' => 'database', 'label' => 'Base de données', 'status' => self::DOWN, 'detail' => 'Injoignable'];
+            return ['id' => 'database', 'label' => $this->trans('health.database'), 'status' => self::DOWN, 'detail' => $this->trans('health.unreachable')];
         }
 
         return [
             'id' => 'database',
-            'label' => 'Base de données',
+            'label' => $this->trans('health.database'),
             'status' => self::OPERATIONAL,
             'detail' => 'PostgreSQL '.explode(' ', (string) $version)[0],
             'latencyMs' => round((hrtime(true) - $start) / 1e6, 1),
@@ -102,12 +105,12 @@ final class PlatformHealth
 
         return [
             'id' => 'queue',
-            'label' => 'Tâches de fond',
+            'label' => $this->trans('health.queue'),
             'status' => $delay > self::QUEUE_DELAY_WARNING ? self::DEGRADED : self::OPERATIONAL,
             'detail' => match (true) {
-                $delay > self::QUEUE_DELAY_WARNING => 'Tâches en attente depuis plus de 5 minutes : le worker est-il démarré ?',
-                (int) $row['queued'] > 0 => \sprintf('%d tâche(s) en cours', $row['queued']),
-                default => 'Aucune tâche en attente',
+                $delay > self::QUEUE_DELAY_WARNING => $this->trans('health.queue_late'),
+                (int) $row['queued'] > 0 => $this->trans('health.queue_running', ['count' => (int) $row['queued']]),
+                default => $this->trans('health.queue_empty'),
             },
             'queued' => (int) $row['queued'],
             'failedMessages' => $failed,
@@ -119,7 +122,7 @@ final class PlatformHealth
     {
         $config = $this->ldapSettings->get();
         if (!$config->enabled) {
-            return ['id' => 'ldap', 'label' => 'Annuaire LDAP', 'status' => 'disabled', 'detail' => 'Non configuré'];
+            return ['id' => 'ldap', 'label' => $this->trans('health.ldap'), 'status' => 'disabled', 'detail' => $this->trans('health.not_configured')];
         }
 
         $row = $databaseUp
@@ -129,7 +132,7 @@ final class PlatformHealth
 
         return [
             'id' => 'ldap',
-            'label' => 'Annuaire LDAP',
+            'label' => $this->trans('health.ldap'),
             'status' => null === $check ? self::UNKNOWN : ($check->isOk() ? self::OPERATIONAL : self::DOWN),
             'detail' => null === $check || $check->isOk() ? $url : $url.' · '.$check->getDetail(),
             'users' => (int) $row['users'],
@@ -166,13 +169,13 @@ final class PlatformHealth
 
         $total = \count($items);
         if (0 === $total) {
-            return ['id' => 'sso', 'label' => 'Authentification unique (OpenID Connect)', 'status' => 'disabled', 'detail' => 'Aucun fournisseur actif', 'items' => []];
+            return ['id' => 'sso', 'label' => $this->trans('health.sso'), 'status' => 'disabled', 'detail' => $this->trans('health.no_provider'), 'items' => []];
         }
         $unchecked = \count(array_filter($items, static fn (array $item) => self::UNKNOWN === $item['status']));
 
         return [
             'id' => 'sso',
-            'label' => 'Authentification unique (OpenID Connect)',
+            'label' => $this->trans('health.sso'),
             'status' => match (true) {
                 \count($failing) === $total => self::DOWN,
                 [] !== $failing => self::DEGRADED,
@@ -180,8 +183,8 @@ final class PlatformHealth
                 default => self::OPERATIONAL,
             },
             'detail' => match (true) {
-                [] !== $failing => \sprintf('%d sur %d en échec : %s', \count($failing), $total, implode(', ', $failing)),
-                $unchecked === $total => 'Pas encore vérifié',
+                [] !== $failing => $this->trans('health.failing', ['failing' => \count($failing), 'total' => $total, 'names' => implode(', ', $failing)]),
+                $unchecked === $total => $this->trans('health.not_checked'),
                 default => implode(', ', array_column($items, 'name')),
             },
             'total' => $total,
@@ -216,7 +219,7 @@ final class PlatformHealth
 
         $total = \count($items);
         if (0 === $total) {
-            return ['id' => $probe->id(), 'label' => $probe->label(), 'status' => 'disabled', 'detail' => 'Non configuré', 'items' => []];
+            return ['id' => $probe->id(), 'label' => $probe->label(), 'status' => 'disabled', 'detail' => $this->trans('health.not_configured'), 'items' => []];
         }
         $unchecked = \count(array_filter($items, static fn (array $item) => self::UNKNOWN === $item['status']));
 
@@ -230,8 +233,8 @@ final class PlatformHealth
                 default => self::OPERATIONAL,
             },
             'detail' => match (true) {
-                [] !== $failing => \sprintf('%d sur %d en échec : %s', \count($failing), $total, implode(', ', $failing)),
-                $unchecked === $total => 'Pas encore vérifié',
+                [] !== $failing => $this->trans('health.failing', ['failing' => \count($failing), 'total' => $total, 'names' => implode(', ', $failing)]),
+                $unchecked === $total => $this->trans('health.not_checked'),
                 1 === $total => (string) ($items[0]['check']['detail'] ?? $items[0]['name']),
                 default => implode(', ', array_column($items, 'name')),
             },
@@ -255,15 +258,21 @@ final class PlatformHealth
 
         return [
             'id' => 'storage',
-            'label' => 'Stockage',
+            'label' => $this->trans('health.storage'),
             'status' => match (true) {
                 !$writable => self::DOWN,
                 null !== $usage && $usage >= 90 => self::DEGRADED,
                 default => self::OPERATIONAL,
             },
-            'detail' => $writable ? 'Accessible en écriture' : 'Dossier non accessible en écriture',
+            'detail' => $writable ? $this->trans('health.writable') : $this->trans('health.not_writable'),
             'usagePercent' => $usage,
             'freeBytes' => $free ? (int) $free : null,
         ];
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

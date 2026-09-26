@@ -7,6 +7,7 @@ Socle commun des briques du Middleware Rocket (Mailer, Auth, Cloud, Print, bient
 - Modes autonome / suite (`ROCKET_AUTH_URL`) : `src/Suite`, `src/Oidc`, back-channel logout, jetons client credentials (`ServiceTokenProvider`, `SuiteAccessTokens`).
 - Application de test : `tests/App` (Kernel, config, `bin/console`) ; tests `tests/Functional`, `tests/Integration`.
 - Thèmes : `ColorPalette`, `Theme\ProjectTheme` (réglage `theme.palette`), `Application::$palette`, `GET /api/theme` public ; front `plugins/theme.client.ts`, `useTheme`, `utils/palette.ts`, `pages/palettes.vue`, `ColorModeSwitch`.
+- Langues : front `useRocketI18n()` (`nuxt/app/composables/useRocketI18n.ts`), textes `nuxt/app/locales/parts/*.ts` (fr et en, mêmes clés), `rocket.locales` / `defaultLocale` / `messages` ; back `src/I18n` (`LocaleListener` sur `Accept-Language` parmi `rocket_core.locales`, `CoreMessages`). Tout nouveau texte visible passe par `t()` dans les deux langues.
 - `suite/` : les briques ensemble (compose + e2e Playwright), workflow `Suite`.
 - `.github/workflows/brick-*.yml` : workflows réutilisables appelés par les briques (`@vX.Y.Z`).
 

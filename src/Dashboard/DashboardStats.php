@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Dashboard;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Rocket\Core\Entity\User;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Clock\ClockInterface;
@@ -22,6 +24,7 @@ final class DashboardStats
         private readonly ClockInterface $clock,
         #[AutowireIterator('app.dashboard_section')]
         private readonly iterable $sections,
+        private readonly ?CoreMessages $messages = null,
     ) {
     }
 
@@ -71,14 +74,14 @@ final class DashboardStats
             $stats['users'] = $users;
             $stats['kpis'][] = [
                 'id' => 'users',
-                'label' => 'Utilisateurs',
+                'label' => $this->trans('dashboard.users'),
                 'value' => $users['total'],
                 'format' => 'number',
                 'icon' => 'i-lucide-users',
                 'tone' => 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
-                'detail' => \sprintf('%d actif(s)', $users['enabled']),
+                'detail' => $this->trans('dashboard.users_enabled', ['count' => $users['enabled']]),
                 'legend' => [
-                    ['label' => $users['local'].' locaux', 'color' => 'bg-sky-500'],
+                    ['label' => $this->trans('dashboard.users_local', ['count' => $users['local']]), 'color' => 'bg-sky-500'],
                     ['label' => $users['ldap'].' LDAP', 'color' => 'bg-violet-500'],
                     ['label' => $users['oidc'].' SSO', 'color' => 'bg-primary'],
                 ],
@@ -131,7 +134,7 @@ final class DashboardStats
                 'actor' => $row['created_by'],
                 'link' => '/users',
                 'icon' => 'i-lucide-user-plus',
-                'label' => 'Nouvel utilisateur',
+                'label' => $this->trans('dashboard.new_user'),
                 'color' => 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400',
             ];
         }
@@ -145,7 +148,7 @@ final class DashboardStats
                 'actor' => $row['created_by'],
                 'link' => '/applications',
                 'icon' => 'i-lucide-plug',
-                'label' => 'Nouvelle application',
+                'label' => $this->trans('dashboard.new_application'),
                 'color' => 'text-violet-600 bg-violet-500/10 dark:text-violet-400',
             ];
         }
@@ -175,5 +178,11 @@ final class DashboardStats
     public static function atom(?string $value): ?string
     {
         return null === $value ? null : (new \DateTimeImmutable($value))->format(\DATE_ATOM);
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

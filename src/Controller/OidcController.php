@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Controller;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Rocket\Core\Enum\AuthenticationServerType;
 use Rocket\Core\Oidc\OidcAccountLinker;
 use Rocket\Core\Oidc\OidcCallbackInput;
@@ -28,6 +30,7 @@ final class OidcController extends AbstractController
         private readonly OidcClient $client,
         private readonly LoggerInterface $logger,
         private readonly SuiteSettings $suite,
+        private readonly ?CoreMessages $messages = null,
     ) {
     }
 
@@ -92,10 +95,16 @@ final class OidcController extends AbstractController
 
         return $this->json([
             'ok' => true,
-            'message' => sprintf('Fournisseur OpenID Connect trouvé : %s.', $metadata['issuer']),
+            'message' => $this->trans('oidc.found', ['issuer' => $metadata['issuer']]),
             'issuer' => $metadata['issuer'],
             'authorizationEndpoint' => $metadata['authorization_endpoint'],
             'scopesSupported' => $metadata['scopes_supported'] ?? [],
         ]);
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

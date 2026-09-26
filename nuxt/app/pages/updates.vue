@@ -3,7 +3,8 @@ import type { AppVersionInfo, UpdateMethod, UpdateRun } from '#rocket/types/api'
 
 definePageMeta({ admin: true })
 const appName = useAppConfig().rocket.name
-useHead({ title: `Mises à jour · ${appName}` })
+const { t } = useRocketI18n()
+useHead({ title: () => `${t('updates.title')} · ${appName}` })
 
 const config = useRuntimeConfig()
 const api = useApi()
@@ -35,29 +36,29 @@ const canStart = computed(() => {
   return false
 })
 
-const METHOD_LABELS: Record<UpdateMethod, string> = {
-  docker: 'Docker (Watchtower)',
-  script: 'Serveur sans Docker (script)',
-  manual: 'Manuelle',
-}
+const METHOD_LABELS = computed<Record<UpdateMethod, string>>(() => ({
+  docker: t('updates.methodDocker'),
+  script: t('updates.methodScript'),
+  manual: t('updates.methodManual'),
+}))
 const methodItems = computed(() => (['docker', 'script', 'manual'] as const).map(value => ({
   value,
-  label: METHOD_LABELS[value] + (update.value?.defaultMethod === value ? ' — par défaut' : ''),
+  label: METHOD_LABELS.value[value] + (update.value?.defaultMethod === value ? t('updates.methodDefaultSuffix') : ''),
   description: {
-    docker: 'Watchtower télécharge les nouvelles images et redémarre les conteneurs.',
-    script: 'Une tâche planifiée lance deploy/update.sh : git, composer, npm, migrations, redémarrage.',
-    manual: 'Pas de bouton : la page donne les commandes à lancer sur le serveur.',
+    docker: t('updates.methodDockerDescription'),
+    script: t('updates.methodScriptDescription'),
+    manual: t('updates.methodManualDescription'),
   }[value],
 })))
 
-const RUN_STATUS: Record<UpdateRun['status'], { label: string, color: 'neutral' | 'info' | 'success' | 'error' | 'warning' }> = {
-  requested: { label: 'En attente de la tâche planifiée', color: 'info' },
-  running: { label: 'En cours', color: 'info' },
-  started: { label: 'Envoyée à Watchtower', color: 'info' },
-  succeeded: { label: 'Installée', color: 'success' },
-  failed: { label: 'Échec', color: 'error' },
-  cancelled: { label: 'Annulée', color: 'neutral' },
-}
+const RUN_STATUS = computed<Record<UpdateRun['status'], { label: string, color: 'neutral' | 'info' | 'success' | 'error' | 'warning' }>>(() => ({
+  requested: { label: t('updates.statusRequested'), color: 'info' },
+  running: { label: t('updates.statusRunning'), color: 'info' },
+  started: { label: t('updates.statusStarted'), color: 'info' },
+  succeeded: { label: t('updates.statusSucceeded'), color: 'success' },
+  failed: { label: t('updates.statusFailed'), color: 'error' },
+  cancelled: { label: t('updates.statusCancelled'), color: 'neutral' },
+}))
 
 const cronLine = computed(() => `* * * * * cd ${(update.value?.methods.script.script ?? '/srv/rocket-print/deploy/update.sh').replace(/\/deploy\/[^/]+$/, '')}/backend && php bin/console app:update:run`)
 
@@ -67,7 +68,7 @@ async function check() {
     await fetchUpdate(true)
   }
   catch (error) {
-    toast.add({ title: 'Vérification impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('updates.checkFailed'), description: apiErrorMessage(error), color: 'error' })
   }
   finally {
     checking.value = false
@@ -81,7 +82,7 @@ async function setMethod(value: UpdateMethod | null) {
     await fetchUpdate()
   }
   catch (error) {
-    toast.add({ title: 'Enregistrement impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('updates.saveFailed'), description: apiErrorMessage(error), color: 'error' })
   }
   finally {
     savingMethod.value = false
@@ -90,7 +91,7 @@ async function setMethod(value: UpdateMethod | null) {
 
 function reloadOn(version: string) {
   clearInterval(poll)
-  toast.add({ title: `${appName} ${version} est installé`, color: 'success', icon: 'i-lucide-party-popper' })
+  toast.add({ title: t('updates.installedToast', { name: appName, version }), color: 'success', icon: 'i-lucide-party-popper' })
   setTimeout(() => window.location.reload(), 1500)
 }
 
@@ -135,7 +136,7 @@ async function start() {
     await api('/api/system/update', { method: 'POST' })
   }
   catch (error) {
-    toast.add({ title: 'Mise à jour impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('updates.updateFailed'), description: apiErrorMessage(error), color: 'error' })
     return
   }
   if (method.value === 'docker') {
@@ -154,7 +155,7 @@ async function cancel() {
     await fetchUpdate()
   }
   catch (error) {
-    toast.add({ title: 'Annulation impossible', description: apiErrorMessage(error), color: 'error' })
+    toast.add({ title: t('updates.cancelFailed'), description: apiErrorMessage(error), color: 'error' })
   }
 }
 
@@ -174,13 +175,13 @@ watch(() => run.value?.log, () => nextTick(() => {
 <template>
   <UDashboardPanel id="updates">
     <template #header>
-      <UDashboardNavbar title="Mises à jour">
+      <UDashboardNavbar :title="t('updates.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
           <UButton
-            label="Vérifier maintenant"
+            :label="t('updates.checkNow')"
             icon="i-lucide-refresh-cw"
             color="neutral"
             variant="outline"
@@ -195,53 +196,53 @@ watch(() => run.value?.log, () => nextTick(() => {
 
     <template #body>
       <div v-if="update" class="flex max-w-3xl flex-col gap-6">
-        <UPageCard title="Version installée" variant="subtle">
+        <UPageCard :title="t('updates.installedTitle')" variant="subtle">
           <div class="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p class="text-3xl font-semibold" data-testid="installed-version">
                 {{ current?.version }}
               </p>
               <p v-if="versionsDiffer" class="text-sm text-muted">
-                Interface : {{ frontVersion }}
+                {{ t('updates.interface', { version: frontVersion }) }}
               </p>
             </div>
-            <UButton label="Changelog" icon="i-lucide-scroll-text" color="neutral" variant="link" :to="config.public.changelogUrl" target="_blank" />
+            <UButton :label="t('updates.changelog')" icon="i-lucide-scroll-text" color="neutral" variant="link" :to="config.public.changelogUrl" target="_blank" />
           </div>
           <p v-if="current?.release === null" class="text-sm text-muted">
-            Build de développement ou d’une branche : il n’a pas de numéro de version à comparer aux versions publiées.
+            {{ t('updates.devBuild') }}
           </p>
         </UPageCard>
 
-        <UAlert v-if="update.error" color="warning" variant="subtle" icon="i-lucide-cloud-off" title="Vérification impossible" :description="update.error" />
+        <UAlert v-if="update.error" color="warning" variant="subtle" icon="i-lucide-cloud-off" :title="t('updates.checkFailed')" :description="update.error" />
         <UAlert
           v-else-if="!update.checkEnabled"
           color="neutral"
           variant="subtle"
           icon="i-lucide-bell-off"
-          title="Vérification des mises à jour désactivée"
-          :description="`UPDATE_REPOSITORY est vide : ${appName} ne consulte pas les versions publiées.`"
+          :title="t('updates.checkDisabledTitle')"
+          :description="t('updates.checkDisabledDescription', { name: appName })"
         />
         <UAlert
           v-else-if="!latest"
           color="neutral"
           variant="subtle"
           icon="i-lucide-package-search"
-          title="Aucune version publiée pour l’instant"
-          :description="`Aucune version n’est publiée sur ${update.repositoryUrl}.`"
+          :title="t('updates.noReleaseTitle')"
+          :description="t('updates.noReleaseDescription', { url: update.repositoryUrl })"
         />
 
         <UPageCard
           v-if="latest"
-          :title="update.updateAvailable ? `${appName} ${latest.version} est disponible` : update.updateAvailable === false ? `${appName} est à jour` : `Dernière version publiée : ${latest.version}`"
+          :title="update.updateAvailable ? t('updates.releaseAvailable', { name: appName, version: latest.version }) : update.updateAvailable === false ? t('updates.upToDate', { name: appName }) : t('updates.latestPublished', { version: latest.version })"
           :description="latest.name !== latest.version && latest.name !== `v${latest.version}` ? latest.name : undefined"
           :icon="update.updateAvailable ? 'i-lucide-sparkles' : 'i-lucide-circle-check'"
           :variant="update.updateAvailable ? 'soft' : 'subtle'"
           data-testid="latest-release"
         >
           <p class="text-sm text-muted">
-            {{ latest.publishedAt ? `Version ${latest.version}, publiée le ${formatDate(latest.publishedAt)}.` : `Version ${latest.version}.` }}
+            {{ latest.publishedAt ? t('updates.releasedOn', { version: latest.version, date: formatDate(latest.publishedAt) }) : t('updates.releaseNoDate', { version: latest.version }) }}
             <ULink :to="latest.url" target="_blank" class="text-primary">
-              Voir la version
+              {{ t('updates.viewRelease') }}
             </ULink>
           </p>
           <div v-if="latest.notes && update.updateAvailable" class="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-default bg-default p-3 text-sm">
@@ -249,7 +250,7 @@ watch(() => run.value?.log, () => nextTick(() => {
           </div>
         </UPageCard>
 
-        <UPageCard title="Méthode de mise à jour" :description="`Selon l’installation de ${appName}.`" icon="i-lucide-settings-2" variant="subtle">
+        <UPageCard :title="t('updates.methodTitle')" :description="t('updates.methodDescription', { name: appName })" icon="i-lucide-settings-2" variant="subtle">
           <URadioGroup
             :model-value="method"
             :items="methodItems"
@@ -260,7 +261,7 @@ watch(() => run.value?.log, () => nextTick(() => {
           />
           <div v-if="update.methodSource === 'database' && update.defaultMethod !== method">
             <UButton
-              :label="`Revenir à la méthode par défaut (${METHOD_LABELS[update.defaultMethod]})`"
+              :label="t('updates.backToDefaultMethod', { method: METHOD_LABELS[update.defaultMethod] })"
               color="neutral"
               variant="link"
               size="sm"
@@ -271,10 +272,10 @@ watch(() => run.value?.log, () => nextTick(() => {
         </UPageCard>
 
         <!-- Docker -->
-        <UPageCard v-if="method === 'docker'" title="Mettre à jour" icon="i-lucide-container" variant="subtle" data-testid="update-docker">
+        <UPageCard v-if="method === 'docker'" :title="t('updates.dockerTitle')" icon="i-lucide-container" variant="subtle" data-testid="update-docker">
           <template v-if="update.methods.docker.configured">
             <p class="text-sm text-muted">
-              Watchtower télécharge les dernières images publiées, puis redémarre l’API, l’envoi et l’interface.
+              {{ t('updates.dockerConfigured') }}
             </p>
           </template>
           <template v-else>
@@ -282,8 +283,8 @@ watch(() => run.value?.log, () => nextTick(() => {
               color="warning"
               variant="subtle"
               icon="i-lucide-plug-zap"
-              title="Le service updater n’est pas configuré"
-              description="Définissez UPDATER_TOKEN, utilisez les images publiées (API_IMAGE, FRONT_IMAGE), puis lancez : docker compose --profile updater up -d"
+              :title="t('updates.dockerNotConfiguredTitle')"
+              :description="t('updates.dockerNotConfiguredDescription')"
             />
           </template>
           <UAlert
@@ -292,73 +293,73 @@ watch(() => run.value?.log, () => nextTick(() => {
             variant="subtle"
             :icon="stalled ? 'i-lucide-triangle-alert' : 'i-lucide-loader-circle'"
             :ui="{ icon: stalled ? '' : 'animate-spin' }"
-            :title="stalled ? 'La nouvelle version ne répond toujours pas' : 'Mise à jour en cours…'"
+            :title="stalled ? t('updates.dockerStalledTitle') : t('updates.dockerInProgressTitle')"
             :description="stalled
-              ? 'Aucune nouvelle version n’a démarré. Vérifiez les journaux du service de mise à jour (docker compose logs updater), et que les services utilisent les images publiées (API_IMAGE, FRONT_IMAGE).'
-              : `Téléchargement des nouvelles images, puis redémarrage des services : ${appName} est indisponible une à deux minutes. La page se recharge toute seule.`"
+              ? t('updates.dockerStalledDescription')
+              : t('updates.dockerInProgressDescription', { name: appName })"
             data-testid="update-progress"
           />
         </UPageCard>
 
         <!-- Server without Docker -->
-        <UPageCard v-else-if="method === 'script'" title="Mettre à jour" icon="i-lucide-server" variant="subtle" data-testid="update-script">
+        <UPageCard v-else-if="method === 'script'" :title="t('updates.scriptTitle')" icon="i-lucide-server" variant="subtle" data-testid="update-script">
           <p class="text-sm text-muted">
-            Installe {{ latest ? `la version ${latest.version}` : 'le dernier tag vX.Y.Z' }} avec <code>{{ update.methods.script.script }}</code>, lancé par la tâche planifiée : code, dépendances, interface, migrations, puis redémarrage des services.
+            {{ t('updates.scriptInstallDescription', { target: latest ? t('updates.scriptInstallTargetVersion', { version: latest.version }) : t('updates.scriptInstallTargetLatest'), script: update.methods.script.script }) }}
           </p>
           <UAlert
             v-if="!update.methods.script.installed"
             color="error"
             variant="subtle"
             icon="i-lucide-file-x"
-            title="Script introuvable"
-            :description="`${update.methods.script.script} n’existe pas ou n’est pas exécutable (UPDATE_SCRIPT). Cette méthode suppose une installation par git clone.`"
+            :title="t('updates.scriptMissingTitle')"
+            :description="t('updates.scriptMissingDescription', { script: update.methods.script.script })"
           />
           <UAlert
             v-if="!update.methods.script.schedulerAlive"
             color="warning"
             variant="subtle"
             icon="i-lucide-clock-alert"
-            :title="update.methods.script.heartbeatAt ? `La tâche planifiée ne tourne plus (dernier passage ${timeAgo(update.methods.script.heartbeatAt)})` : 'La tâche planifiée n’a jamais tourné'"
+            :title="update.methods.script.heartbeatAt ? t('updates.schedulerDeadTitle', { time: timeAgo(update.methods.script.heartbeatAt) }) : t('updates.schedulerNeverRanTitle')"
             data-testid="scheduler-warning"
           >
             <template #description>
-              <p>Ajoutez-la à la crontab de l’utilisateur propriétaire des fichiers (crontab -e) :</p>
+              <p>{{ t('updates.schedulerCrontabIntro') }}</p>
               <pre class="mt-2 overflow-x-auto rounded-md bg-elevated p-2 text-xs"><code>{{ cronLine }}</code></pre>
             </template>
           </UAlert>
           <p v-else class="text-xs text-muted">
-            Tâche planifiée active, dernier passage {{ timeAgo(update.methods.script.heartbeatAt) }}.
+            {{ t('updates.schedulerActive', { time: timeAgo(update.methods.script.heartbeatAt) }) }}
           </p>
 
           <div v-if="run && run.method === 'script' && run.log !== undefined && run.status !== 'cancelled'" class="flex flex-col gap-2" data-testid="update-run">
             <div class="flex items-center gap-2 text-sm">
               <UBadge :label="RUN_STATUS[run.status].label" :color="RUN_STATUS[run.status].color" variant="subtle" />
-              <span class="text-muted">{{ run.fromVersion }} → {{ run.target ?? 'dernière version' }}</span>
-              <UButton v-if="run.status === 'requested'" label="Annuler" size="xs" color="neutral" variant="link" data-testid="cancel-update" @click="cancel" />
+              <span class="text-muted">{{ t('updates.runTarget', { from: run.fromVersion, target: run.target ?? t('updates.latestVersionFallback') }) }}</span>
+              <UButton v-if="run.status === 'requested'" :label="t('updates.cancel')" size="xs" color="neutral" variant="link" data-testid="cancel-update" @click="cancel" />
             </div>
             <pre v-if="run.log" ref="logBox" class="max-h-80 overflow-auto rounded-md bg-elevated p-3 text-xs" data-testid="update-log">{{ run.log }}</pre>
             <p v-else-if="run.status === 'requested'" class="text-sm text-muted">
-              La tâche planifiée démarre la mise à jour dans la minute.
+              {{ t('updates.runQueued') }}
             </p>
           </div>
         </UPageCard>
 
         <!-- Manual -->
-        <UPageCard v-else title="Mettre à jour" :description="`Sur le serveur, dans le dossier de ${appName} :`" icon="i-lucide-terminal" variant="subtle" data-testid="manual-update">
+        <UPageCard v-else :title="t('updates.manualTitle')" :description="t('updates.manualDescription', { name: appName })" icon="i-lucide-terminal" variant="subtle" data-testid="manual-update">
           <p class="text-sm font-medium">
-            Avec Docker
+            {{ t('updates.manualWithDocker') }}
           </p>
           <pre class="overflow-x-auto rounded-md bg-elevated p-3 text-sm"><code>docker compose pull
 docker compose up -d</code></pre>
           <p class="text-sm font-medium">
-            Sans Docker (installation par git clone)
+            {{ t('updates.manualWithoutDocker') }}
           </p>
           <pre class="overflow-x-auto rounded-md bg-elevated p-3 text-sm"><code>TARGET_VERSION={{ latest?.tag ?? 'v0.7.0' }} deploy/update.sh</code></pre>
         </UPageCard>
 
         <div v-if="method !== 'manual'">
           <UButton
-            label="Mettre à jour"
+            :label="t('updates.startUpdate')"
             icon="i-lucide-download"
             size="lg"
             :color="update.updateAvailable ? 'primary' : 'neutral'"
@@ -370,11 +371,11 @@ docker compose up -d</code></pre>
           />
         </div>
 
-        <UPageCard v-if="update.history.length" title="Historique" variant="subtle">
+        <UPageCard v-if="update.history.length" :title="t('updates.historyTitle')" variant="subtle">
           <ul class="divide-y divide-default text-sm" data-testid="update-history">
             <li v-for="item in update.history" :key="item.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
               <UBadge :label="RUN_STATUS[item.status].label" :color="RUN_STATUS[item.status].color" variant="subtle" size="sm" />
-              <span>{{ item.fromVersion }} → {{ item.target ?? 'dernière version' }}</span>
+              <span>{{ t('updates.runTarget', { from: item.fromVersion, target: item.target ?? t('updates.latestVersionFallback') }) }}</span>
               <span class="text-muted">{{ METHOD_LABELS[item.method] }}</span>
               <span class="ms-auto text-xs text-muted">{{ formatDate(item.requestedAt) }}{{ item.requestedBy ? ` · ${item.requestedBy}` : '' }}</span>
             </li>
@@ -384,23 +385,23 @@ docker compose up -d</code></pre>
 
       <UModal
         v-model:open="confirmOpen"
-        :title="`Mettre à jour ${appName} ?`"
-        :description="latest && update?.updateAvailable ? `Installation de la version ${latest.version}.` : 'Installation de la dernière version publiée.'"
+        :title="t('updates.confirmTitle', { name: appName })"
+        :description="latest && update?.updateAvailable ? t('updates.confirmDescriptionAvailable', { version: latest.version }) : t('updates.confirmDescriptionLatest')"
       >
         <template #body>
           <ul class="list-disc space-y-1 pl-5 text-sm text-muted">
-            <li>L’API, le worker et l’interface redémarrent : {{ appName }} est indisponible une à deux minutes.</li>
-            <li>Les emails en attente partent après le redémarrage ; rien n’est perdu.</li>
-            <li>La base de données est migrée automatiquement.</li>
+            <li>{{ t('updates.confirmRestart', { name: appName }) }}</li>
+            <li>{{ t('updates.confirmEmails') }}</li>
+            <li>{{ t('updates.confirmMigrations') }}</li>
             <li v-if="method === 'script'">
-              En cas d’échec avant les migrations, le script remet la version actuelle.
+              {{ t('updates.confirmScriptRollback') }}
             </li>
           </ul>
         </template>
         <template #footer>
           <div class="flex w-full justify-end gap-2">
-            <UButton label="Annuler" color="neutral" variant="ghost" @click="confirmOpen = false" />
-            <UButton label="Mettre à jour" icon="i-lucide-download" data-testid="confirm-update" @click="start" />
+            <UButton :label="t('common.cancel')" color="neutral" variant="ghost" @click="confirmOpen = false" />
+            <UButton :label="t('updates.startUpdate')" icon="i-lucide-download" data-testid="confirm-update" @click="start" />
           </div>
         </template>
       </UModal>

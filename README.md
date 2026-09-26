@@ -194,6 +194,15 @@ jobs:
     with: { front-url: 'http://localhost:3100', docs-url: 'http://localhost:3101' }
 ```
 
+## Langues (français, anglais)
+
+Le layer et les messages de l'API du socle existent en **français** et en **anglais**. Par défaut, une application reste en français uniquement : rien ne change tant qu'elle n'ajoute pas l'anglais.
+
+- **Front** (`app.config.ts`) : `rocket.locales: ['fr', 'en']` affiche un choix de langue dans le menu utilisateur (cookie `rocket_locale`) ; `rocket.defaultLocale` donne la langue par défaut, qu'une brique peut aussi fixer à l'exécution (`useRocketI18n().setDefaultLocale('en')`, par exemple d'après un réglage).
+- **Textes** : `const { t, locale, languageTag } = useRocketI18n()` ; `t('users.title')`, `t('dashboard.greeting', { name })`. Les textes du layer sont dans `nuxt/app/locales/parts/<espace>.ts` (`{ fr: {...}, en: {...} }`, chargés automatiquement). Une brique fournit les siens dans `rocket.messages` (`{ fr: {...}, en: {...} }`), lus avant ceux du layer ; les libellés de `rocket.navigation`, `rocket.adminNavigation` et `rocket.tagline` peuvent être des clés de ces textes.
+- `formatDate`, `timeAgo`, `formatNumber`, `formatPercent`, `formatSize` suivent la langue ; `rocket.quotes` vide : citations du layer dans la langue courante.
+- **API** : `useApi` envoie `Accept-Language` ; le bundle suit cette langue parmi `rocket_core.locales` (défaut `[fr]`, même liste que le front) pour le tableau de bord, l'état des services et les mises à jour (`Rocket\Core\I18n\CoreMessages`, sans dépendance au composant Translation). La langue retenue est dans l'attribut de requête `_rocket_locale` et `Request::getLocale()`.
+
 ## Thèmes et palettes
 
 - **Clair, sombre ou système** : bouton (`ColorModeSwitch`) en bas du menu et en haut à droite des pages de connexion et de configuration initiale ; choix gardé dans le navigateur. Les pages embarquées (`/embed/…`) n'ont pas de bouton et suivent le système.

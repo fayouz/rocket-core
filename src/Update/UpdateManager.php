@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Update;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Rocket\Core\Entity\UpdateRun;
 use Rocket\Core\Enum\UpdateMethod;
 use Rocket\Core\Enum\UpdateRunStatus;
@@ -25,6 +27,7 @@ class UpdateManager
         private readonly EntityManagerInterface $em,
         private readonly LockFactory $locks,
         private readonly LoggerInterface $logger,
+        private readonly ?CoreMessages $messages = null,
     ) {
     }
 
@@ -38,12 +41,12 @@ class UpdateManager
         $this->reconcile();
         $active = $this->runs->latest();
         if (null !== $active && $active->getStatus()->isActive()) {
-            throw new UpdateException('Une mise à jour est déjà en cours.');
+            throw new UpdateException($this->trans('update.running'));
         }
 
         $method = $this->settings->method();
         $run = match ($method) {
-            UpdateMethod::Manual => throw new UpdateException('La méthode de mise à jour est « manuelle » : lancez les commandes sur le serveur.'),
+            UpdateMethod::Manual => throw new UpdateException($this->trans('update.manual')),
             // Watchtower installs the images of the tags the containers use (latest…), not a given version.
             UpdateMethod::Docker => new UpdateRun($method, $this->releases->current()->label(), null),
             UpdateMethod::Script => new UpdateRun($method, $this->releases->current()->label(), $target),
@@ -51,7 +54,7 @@ class UpdateManager
         if (UpdateMethod::Docker === $method) {
             $this->docker->start();
         } elseif (!$this->script->isInstalled()) {
-            throw new UpdateException(\sprintf('Le script de mise à jour « %s » est introuvable ou n’est pas exécutable.', $this->script->script()));
+            throw new UpdateException($this->trans('update.script_missing', ['script' => $this->script->script()]));
         }
 
         $this->em->persist($run);
@@ -65,7 +68,7 @@ class UpdateManager
     {
         $run = $this->runs->nextRequested();
         if (null === $run) {
-            throw new UpdateException('Aucune mise à jour en attente.');
+            throw new UpdateException($this->trans('update.nothing'));
         }
         $run->finish(UpdateRunStatus::Cancelled);
         $this->em->flush();
@@ -141,5 +144,11 @@ class UpdateManager
         } finally {
             $lock->release();
         }
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

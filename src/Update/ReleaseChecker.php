@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Update;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
@@ -22,6 +24,7 @@ class ReleaseChecker
         #[Autowire('%env(UPDATE_REPOSITORY)%')] private readonly string $repository,
         #[Autowire('%env(APP_VERSION)%')] private readonly string $version,
         #[Autowire('%kernel.project_dir%/VERSION')] private readonly string $versionFile,
+        private readonly ?CoreMessages $messages = null,
     ) {
     }
 
@@ -106,15 +109,21 @@ class ReleaseChecker
                 'timeout' => 10,
             ]);
             if (404 === $response->getStatusCode()) {
-                throw new UpdateException(\sprintf('Le dépôt « %s » est introuvable sur GitHub (UPDATE_REPOSITORY).', trim($this->repository)));
+                throw new UpdateException($this->trans('update.repository_missing', ['repository' => trim($this->repository)]));
             }
             if (\in_array($response->getStatusCode(), [403, 429], true)) {
-                throw new UpdateException('GitHub limite le nombre de vérifications : réessayez dans une heure.');
+                throw new UpdateException($this->trans('update.rate_limited'));
             }
 
             return array_values(array_filter($response->toArray(), 'is_array'));
         } catch (HttpException $e) {
             throw new UpdateException('GitHub est injoignable : '.$e->getMessage(), previous: $e);
         }
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

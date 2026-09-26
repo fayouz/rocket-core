@@ -2,6 +2,8 @@
 
 namespace Rocket\Core\Update;
 
+use Rocket\Core\I18n\CoreMessages;
+
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -16,6 +18,7 @@ class Updater
         private readonly HttpClientInterface $httpClient,
         #[Autowire('%env(UPDATER_URL)%')] private readonly string $url,
         #[Autowire('%env(UPDATER_TOKEN)%')] private readonly string $token,
+        private readonly ?CoreMessages $messages = null,
     ) {
     }
 
@@ -28,7 +31,7 @@ class Updater
     public function start(): void
     {
         if (!$this->isConfigured()) {
-            throw new UpdateException('La mise à jour automatique n’est pas configurée (UPDATER_URL, UPDATER_TOKEN).');
+            throw new UpdateException($this->trans('update.not_configured'));
         }
 
         try {
@@ -38,14 +41,20 @@ class Updater
                 'timeout' => 10,
             ])->getStatusCode();
         } catch (HttpException $e) {
-            throw new UpdateException('Le service de mise à jour est injoignable : '.$e->getMessage(), previous: $e);
+            throw new UpdateException($this->trans('update.unreachable', ['error' => $e->getMessage()]), previous: $e);
         }
 
         match (true) {
             $status >= 200 && $status < 300 => null,
-            429 === $status => throw new UpdateException('Une mise à jour est déjà en cours.'),
-            401 === $status, 403 === $status => throw new UpdateException('Le service de mise à jour refuse le jeton (UPDATER_TOKEN).'),
-            default => throw new UpdateException(\sprintf('Le service de mise à jour a répondu %d.', $status)),
+            429 === $status => throw new UpdateException($this->trans('update.running')),
+            401 === $status, 403 === $status => throw new UpdateException($this->trans('update.token_refused')),
+            default => throw new UpdateException($this->trans('update.status', ['status' => $status])),
         };
+    }
+
+    /** @param array<string, string|int> $parameters */
+    private function trans(string $key, array $parameters = []): string
+    {
+        return ($this->messages ?? CoreMessages::french())->trans($key, $parameters);
     }
 }

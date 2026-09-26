@@ -1,7 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'bare' })
 const appName = useAppConfig().rocket.name
-useHead({ title: `Configuration initiale · ${appName}` })
+const { t } = useRocketI18n()
+useHead({ title: () => `${t('setup.title')} · ${appName}` })
 
 const auth = useAuth()
 const config = useRuntimeConfig()
@@ -54,30 +55,30 @@ async function submit() {
       <template #header>
         <div class="flex items-center gap-2 text-lg font-semibold">
           <UIcon name="i-lucide-rocket" class="size-6 text-primary" />
-          Bienvenue dans {{ appName }}
+          {{ t('setup.welcome', { name: appName }) }}
         </div>
         <p class="mt-1 text-sm text-muted">
-          Première installation : créez le compte administrateur. Il gérera ensuite les utilisateurs, les applications et les réglages.
+          {{ t('setup.intro') }}
         </p>
       </template>
 
       <form class="flex flex-col gap-4" @submit.prevent="submit">
         <div class="grid grid-cols-2 gap-3">
-          <UFormField label="Prénom">
+          <UFormField :label="t('common.firstName')">
             <UInput v-model="state.firstName" autocomplete="given-name" class="w-full" />
           </UFormField>
-          <UFormField label="Nom">
+          <UFormField :label="t('common.lastName')">
             <UInput v-model="state.lastName" autocomplete="family-name" class="w-full" />
           </UFormField>
         </div>
-        <UFormField label="Email" required>
+        <UFormField :label="t('common.email')" required>
           <UInput v-model="state.email" type="email" autocomplete="username" class="w-full" autofocus />
         </UFormField>
         <UFormField
-          label="Mot de passe"
+          :label="t('common.password')"
           required
-          :hint="`${MIN_LENGTH} caractères minimum`"
-          :error="passwordTooShort ? `Encore ${MIN_LENGTH - state.password.length} caractère(s)` : undefined"
+          :hint="t('setup.minLength', { n: MIN_LENGTH })"
+          :error="passwordTooShort ? t('setup.remaining', { n: MIN_LENGTH - state.password.length }) : undefined"
         >
           <UInput
             v-model="state.password"
@@ -89,7 +90,7 @@ async function submit() {
             <template #trailing>
               <UButton
                 :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-                :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+                :aria-label="showPassword ? t('setup.hidePassword') : t('setup.showPassword')"
                 color="neutral"
                 variant="link"
                 size="sm"
@@ -98,26 +99,26 @@ async function submit() {
             </template>
           </UInput>
         </UFormField>
-        <UFormField label="Confirmation" required :error="mismatch ? 'Les mots de passe ne correspondent pas' : undefined">
+        <UFormField :label="t('setup.confirmation')" required :error="mismatch ? t('setup.mismatch') : undefined">
           <UInput v-model="state.confirmation" :type="showPassword ? 'text' : 'password'" autocomplete="new-password" class="w-full" />
         </UFormField>
         <UFormField
           v-if="setup.tokenRequired"
-          label="Jeton d’installation"
+          :label="t('setup.token')"
           required
           hint="SETUP_TOKEN"
-          :help="`Défini dans la configuration du serveur (.env) par la personne qui a installé ${appName}.`"
+          :help="t('setup.tokenHelp', { name: appName })"
         >
           <UInput v-model="state.setupToken" type="password" autocomplete="off" class="w-full" />
         </UFormField>
 
         <UAlert v-if="error" color="error" variant="subtle" :description="error" icon="i-lucide-circle-alert" />
-        <UButton type="submit" label="Créer le compte administrateur" icon="i-lucide-shield-check" block :loading="loading" :disabled="!canSubmit" />
+        <UButton type="submit" :label="t('setup.submit')" icon="i-lucide-shield-check" block :loading="loading" :disabled="!canSubmit" />
       </form>
 
       <template #footer>
         <p class="text-xs text-muted">
-          Cette page n’est disponible que tant qu’aucun compte n’existe. Vous pourrez ensuite ajouter des administrateurs dans « Utilisateurs », ou via le groupe LDAP des administrateurs.
+          {{ t('setup.footer') }}
         </p>
       </template>
     </UCard>
