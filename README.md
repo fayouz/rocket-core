@@ -16,7 +16,7 @@ Une application Rocket ne contient que son métier : elle installe les deux paqu
 ```json
 // composer.json
 "repositories": [{ "type": "vcs", "url": "https://github.com/fayouz/rocket-core" }],
-"require": { "rocket/core-bundle": "dev-main" }
+"require": { "rocket/core-bundle": "^0.1" }
 ```
 
 ```php
@@ -54,7 +54,7 @@ Points d'extension, par simple implémentation d'une interface (autoconfiguratio
 
 ```json
 // package.json
-"dependencies": { "@rocket/core": "github:fayouz/rocket-core#main" }
+"dependencies": { "@rocket/core": "github:fayouz/rocket-core#semver:^0.1.0" }
 ```
 
 ```ts
@@ -174,23 +174,23 @@ Les briques appellent les workflows de `.github/workflows/` (`workflow_call`) au
 jobs:
   backend:
     name: Backend (PHP)
-    uses: fayouz/rocket-core/.github/workflows/brick-backend.yml@main
+    uses: fayouz/rocket-core/.github/workflows/brick-backend.yml@v0.1.0
   frontend:
     name: Frontend (Nuxt)
-    uses: fayouz/rocket-core/.github/workflows/brick-frontend.yml@main
+    uses: fayouz/rocket-core/.github/workflows/brick-frontend.yml@v0.1.0
   docs:
     name: Docs (Nuxt Content)
-    uses: fayouz/rocket-core/.github/workflows/brick-frontend.yml@main
+    uses: fayouz/rocket-core/.github/workflows/brick-frontend.yml@v0.1.0
     with: { working-directory: docs, build-script: generate }
   images:
     name: Docker images
     needs: [backend, frontend]
     permissions: { contents: read, packages: write }
-    uses: fayouz/rocket-core/.github/workflows/brick-images.yml@main
+    uses: fayouz/rocket-core/.github/workflows/brick-images.yml@v0.1.0
   demo:
     name: Demo environment (compose)
     needs: [backend, frontend]
-    uses: fayouz/rocket-core/.github/workflows/brick-demo.yml@main
+    uses: fayouz/rocket-core/.github/workflows/brick-demo.yml@v0.1.0
     with: { front-url: 'http://localhost:3100', docs-url: 'http://localhost:3101' }
 ```
 
@@ -237,6 +237,10 @@ $http->request('POST', $mailerUrl.'/api/emails', ['auth_bearer' => $tokens->toke
 ```
 
 L'application appelée accepte `Authorization: Bearer <jeton Rocket Auth>` (`ApplicationTokenAuthenticator`, via `SuiteAccessTokens`) : signature (JWKS), `iss`, `aud` = son client ID (`rocket-<app_id>`), `exp`, et un jeton d'application seulement (`sub` = `azp` = client appelant). Le client appelant (ex. `rocket-cloud`) doit être **lié à une application** par un administrateur (champ « Client Rocket Auth » de la page Applications, `Application::$oauthClientId`) : ses droits sont ceux de cette application (impersonation avec `X-Impersonate-User`, jamais administrateur, `lastUsedAt`). Les jetons statiques restent valables (mode autonome, transition).
+
+## Versions
+
+rocket-core suit le versionnage sémantique : chaque version est un tag `vX.Y.Z`. Les briques dépendent de `^0.1` (Composer), `github:fayouz/rocket-core#semver:^0.1.0` (npm) et des workflows `@v0.1.0`. Renovate (`renovate.json` de chaque brique) ouvre une seule pull request pour les trois quand une nouvelle version est taguée. Tant que la version est en 0.x, une version mineure (0.2.0) peut casser la compatibilité : les briques la reçoivent par une pull request à valider.
 
 ## Développement
 
