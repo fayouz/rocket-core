@@ -109,6 +109,10 @@ jobs:
           # Rocket Mailer: its widget script, and its SMTP relay (Mailpit)
           curl -fsS $MAILER/embed.js | grep -q RocketMailer
           curl -fsS http://localhost:8025/api/v1/messages -H 'Accept: application/json' | jq -e '.messages | type == "array"'
+          # Rocket Cloud reaches Rocket Mailer with a token of Rocket Auth (client credentials, application "Rocket Cloud"
+          # of Rocket Mailer): its health check of the notifications calls Rocket Mailer's /api/me.
+          $COMPOSE exec -T cloud-api php bin/console app:health:check | tee cloud-health.txt || true
+          grep -E 'mailer[^ ]*[[:space:]]+OK' cloud-health.txt
 
       - uses: actions/setup-node@v4
         with:
