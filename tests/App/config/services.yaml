@@ -1,0 +1,13 @@
+parameters:
+    env(UPDATE_REPOSITORY): 'acme/rocket-app'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    Rocket\Core\Tests\Support\HttpMock: ~
+    Rocket\Core\Tests\Support\EmbedEndpoints: ~
+    # Used by the bricks, not by the test application: kept for the tests.
+    Rocket\Core\Suite\ServiceTokenProvider:
+        public: true

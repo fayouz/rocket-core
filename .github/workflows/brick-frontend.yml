@@ -1,0 +1,43 @@
+# Reusable workflow: a Nuxt application of a Rocket brick (the frontend, the Nuxt Content docs site,
+# the core Nuxt layer…): npm ci, lint, typecheck, then an optional build script.
+name: Brick frontend
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory of the Nuxt application (with its package-lock.json).
+        type: string
+        default: frontend
+      node-version:
+        type: string
+        default: '22'
+      build-script:
+        description: npm script run after lint and typecheck ("build", "generate"…); empty for none.
+        type: string
+        default: build
+
+permissions:
+  contents: read
+
+jobs:
+  nuxt:
+    name: npm (${{ inputs.working-directory }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - if: inputs.build-script != ''
+        run: npm run "$BUILD_SCRIPT"
+        env:
+          BUILD_SCRIPT: ${{ inputs.build-script }}
