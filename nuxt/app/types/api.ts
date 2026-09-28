@@ -330,3 +330,25 @@ export interface ThemeResponse {
 export interface ProjectTheme {
   palette: import('../utils/palette').ThemePalette | null
 }
+
+/** A secret of the vault (GET /api/secrets, administrators): never its value. */
+export interface VaultSecret {
+  id: string
+  name: string
+  /** null: the instance; later an account identifier. */
+  scope: string | null
+  /** "••••1234" (values of 12 characters or more), "••••••••" otherwise. */
+  masked: string
+  createdAt: string | null
+  updatedAt: string | null
+  lastUsedAt: string | null
+  createdBy: string | null
+  updatedBy: string | null
+}
+
+/** GET /api/secrets: configured is false while ROCKET_SECRETS_KEY is missing or invalid (error says why). */
+export interface VaultSecrets {
+  configured: boolean
+  error: string | null
+  secrets: VaultSecret[]
+}
