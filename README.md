@@ -4,8 +4,8 @@ Le socle commun des applications Rocket (Rocket Mailer, Rocket Auth, Rocket Clou
 
 | Partie | Paquet | Contenu |
 |---|---|---|
-| `src/`, `config/`, `migrations/` | bundle Symfony `rocket/core-bundle` (Composer) | configuration initiale, comptes locaux, LDAP et OpenID Connect, serveurs d'authentification, applications externes et impersonation, tableau de bord extensible, sondes de santé, versions et mises à jour, démo, modes autonome et suite |
-| `nuxt/` | layer Nuxt `@rocket/core` (npm) | layout et menu, tableau de bord, connexion, configuration initiale, utilisateurs, LDAP, serveurs d'authentification, applications, mises à jour, documentation et changelog |
+| `src/`, `config/`, `migrations/` | bundle Symfony `rocket/core-bundle` (Composer) | configuration initiale, comptes locaux, LDAP et OpenID Connect, serveurs d'authentification, applications externes et impersonation, coffre des secrets, tableau de bord extensible, sondes de santé, versions et mises à jour, démo, modes autonome et suite |
+| `nuxt/` | layer Nuxt `@rocket/core` (npm) | layout et menu, tableau de bord, connexion, configuration initiale, utilisateurs, LDAP, serveurs d'authentification, applications, secrets (`SecretField`), mises à jour, documentation et changelog |
 
 Une application Rocket ne contient que son métier : elle installe les deux paquets et les complète.
 
@@ -210,6 +210,71 @@ jobs:
 | `GET` | `/api/theme?app={id}` | Public : `{ source: application\|project\|default, palette }` |
 
 La brique rend `/api/theme` public dans son `security.yaml` (avant la règle `^/api`) : `- { path: ^/api/theme$, roles: PUBLIC_ACCESS }`. Sans cette règle, le front garde ses couleurs par défaut.
+
+## Coffre des secrets
+
+Les clés d'API, jetons et mots de passe des intégrations (Lodgify, Nuki, connecteurs…) sont gardés **chiffrés en base** plutôt que dans le `.env`. Seule la clé maîtresse reste dans l'environnement.
+
+- **Chiffrement** : XChaCha20-Poly1305 (libsodium AEAD, nonce aléatoire de 24 octets), avec la portée et le nom du secret comme données associées (un chiffré recopié sur un autre secret ne se déchiffre pas). Clé maîtresse `ROCKET_SECRETS_KEY` : base64 de 32 octets, `php bin/console rocket:secrets:generate-key`. Sans clé (ou clé invalide), rien n'est enregistré, jamais en clair : la page Secrets l'explique, l'API répond 503 et la sonde « Coffre des secrets » du tableau de bord échoue dès qu'un secret est stocké.
+- **Entité `Secret`** : `scope` (null = l'instance ; plus tard l'identifiant d'un compte), `name` unique par portée (`lodgify.api_key`), chiffré, identifiant de la clé utilisée, 4 derniers caractères des valeurs d'au moins 12 caractères (aperçu `••••1234`), `createdAt`/`updatedAt`/`createdBy`/`updatedBy`, `lastUsedAt` (mis à jour à chaque lecture par le code).
+- **Journal** : créations, remplacements et suppressions sont journalisés (jamais la valeur) ; les lectures renseignent `lastUsedAt`.
+
+### Dans le code d'une brique
+
+```php
+use Rocket\Core\Secrets\SecretVault;
+
+final class LodgifyClient
+{
+    public function __construct(private readonly SecretVault $vault, private readonly HttpClientInterface $http) {}
+
+    public function bookings(): array
+    {
+        // Pendant la transition : le coffre, sinon la variable d'environnement (avertissement « deprecated » journalisé).
+        $apiKey = $this->vault->getOrEnv('lodgify.api_key', 'LODGIFY_API_KEY')
+            ?? throw new \RuntimeException('Clé Lodgify absente : Administration → Secrets.');
+        // Ensuite : $this->vault->get('lodgify.api_key') (SecretNotFoundException si absent), find() (null si absent).
+
+        return $this->http->request('GET', 'https://api.lodgify.com/v2/reservations/bookings', ['headers' => ['X-ApiKey' => $apiKey]])->toArray();
+    }
+}
+```
+
+`SecretVault` : `get(name, scope)`, `find()`, `getOrEnv(name, envVar, scope)`, `has()`, `set(name, value, scope)`, `delete()`, `list(scope)` (entités sans valeur ; `false` = toutes les portées), `isConfigured()`, `configurationError()`, `rotate()`.
+
+Dans un formulaire de connecteur (layer), la brique enregistre le **nom** du secret et le relit côté serveur :
+
+```vue
+<UFormField label="Clé d'API Lodgify">
+  <SecretField v-model="form.apiKeySecret" default-name="lodgify.api_key" />
+</UFormField>
+```
+
+`SecretField` propose les secrets existants (nom et aperçu masqué) et un bouton « Nouveau » qui en crée un sans quitter le formulaire. Administration → **Secrets** (`pages/secrets.vue`) les liste, les crée, remplace leur valeur et les supprime.
+
+| Méthode | Endpoint | Rôle (administrateurs) |
+|---|---|---|
+| `GET` | `/api/secrets[?scope=]` | `{ configured, error, secrets: [{ id, name, scope, masked, createdAt, updatedAt, lastUsedAt, createdBy, updatedBy }] }` |
+| `POST` | `/api/secrets` | `{ name, value, scope? }` → 201 ; 409 si le nom existe, 422 nom invalide ou valeur vide, 503 sans clé |
+| `PUT` | `/api/secrets/{id}` | `{ value }` : remplace la valeur |
+| `DELETE` | `/api/secrets/{id}` | 204 |
+
+Les valeurs ne sont **jamais** renvoyées par l'API.
+
+### Commandes
+
+| Commande | Rôle |
+|---|---|
+| `rocket:secrets:generate-key` | Affiche une nouvelle clé pour `ROCKET_SECRETS_KEY` |
+| `rocket:secrets:import-env PREFIX [--dry-run] [--overwrite] [--keep-case] [--scope=]` | Importe les variables d'environnement non vides qui commencent par `PREFIX` (`CONNECTOR_`, ou un nom complet comme `LODGIFY_API_KEY`) : `CONNECTOR_NUKI_TOKEN` → secret `connector_nuki_token`. Les secrets existants sont gardés sans `--overwrite`. Retirer ensuite les variables du `.env`. |
+| `rocket:secrets:rotate` | Rotation : déplacer l'ancienne clé dans `ROCKET_SECRETS_KEY_PREVIOUS`, mettre la nouvelle dans `ROCKET_SECRETS_KEY`, lancer la commande (tout est rechiffré), puis retirer `ROCKET_SECRETS_KEY_PREVIOUS`. |
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `ROCKET_SECRETS_KEY` | Clé maîtresse du coffre (base64 de 32 octets). La perdre rend les secrets illisibles : la sauvegarder hors de la base. | — |
+| `ROCKET_SECRETS_KEY_PREVIOUS` | Ancienne clé, le temps d'une rotation | — |
+
+`SECRETS_ENCRYPTION_KEY` (mots de passe LDAP et secrets OpenID Connect, `Security\SecretBox`) reste inchangée.
 
 ## Modes autonome et suite
 

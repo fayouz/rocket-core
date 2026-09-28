@@ -40,6 +40,7 @@ const items = computed<NavigationMenuItem[][]>(() => [
         // Suite mode: sign-in is Rocket Auth's (managed from the configuration).
         ...(isSuite.value ? [] : [{ label: 'Serveurs d’authentification', icon: 'i-lucide-shield-check', to: '/authentication-servers' }]),
         { label: 'Applications', icon: 'i-lucide-key-round', to: '/applications' },
+        { label: 'Secrets', icon: 'i-lucide-vault', to: '/secrets' },
         { label: 'Palettes', icon: 'i-lucide-palette', to: '/palettes' },
         { label: 'Mises à jour', icon: updateAvailable.value ? 'i-lucide-circle-arrow-up' : 'i-lucide-refresh-cw', to: '/updates' },
       ]
