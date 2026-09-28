@@ -99,6 +99,9 @@ final class RocketCoreBundle extends AbstractBundle
         'LDAP_ATTRIBUTE_GROUPS' => 'memberOf',
         'SETUP_TOKEN' => '',
         'SECRETS_ENCRYPTION_KEY' => '',
+        // Secrets vault (see Rocket\Core\Secrets\SecretVault): base64 of 32 bytes, rocket:secrets:generate-key.
+        'ROCKET_SECRETS_KEY' => '',
+        'ROCKET_SECRETS_KEY_PREVIOUS' => '',
         'DATA_DIR' => '%kernel.project_dir%/var/data',
         'APP_VERSION' => '',
         'UPDATE_REPOSITORY' => '',
