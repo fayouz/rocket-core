@@ -1,0 +1,151 @@
+# Reusable workflow: build and publish the Docker images of a Rocket brick (or of any single-image app) to GHCR.
+#
+# - Published (multi-arch, linux/amd64 + linux/arm64 through QEMU) ONLY for a version tag "v*" and a manual run
+#   (workflow_dispatch). Tags: vX.Y.Z, X.Y.Z, X.Y, latest (version tags only) and sha-<short>; a manual run from a
+#   branch publishes <branch> and sha-<short>.
+# - Otherwise (pull requests, branches): validation build of linux/amd64 only (no QEMU), loaded locally as
+#   <image-prefix>-<component>:ci and smoke-tested (see "smoke"), never pushed.
+# - OCI labels/annotations (source, version, revision, ...) from docker/metadata-action; SBOM + provenance
+#   (mode=max) attestations on published images. Build cache: type=gha, one scope per component.
+#
+# Image name: "image" of the entry, else ghcr.io/<owner>/<repository>-<component> (lowercase).
+# GHCR visibility: a package created from a private repository is private (the default, keep it so);
+# free plan quotas for private packages: 500 MB storage and 1 GB/month transfer (public packages are free).
+#
+# The caller must grant the permissions "contents: read" and "packages: write".
+name: Docker images
+
+on:
+  workflow_call:
+    inputs:
+      images:
+        description: >-
+          JSON list of {component, context, target?, dockerfile?, image?}: component name, Docker build context,
+          Dockerfile stage (default "prod"), Dockerfile path (default <context>/Dockerfile), full image name
+          (default ghcr.io/<owner>/<repository>-<component>).
+        type: string
+        default: '[{"component": "api", "context": "backend"}, {"component": "front", "context": "frontend"}]'
+      platforms:
+        description: Platforms of the published images.
+        type: string
+        default: linux/amd64,linux/arm64
+      validation-platform:
+        description: Platform of the validation build (pull requests and branches, not published).
+        type: string
+        default: linux/amd64
+      image-prefix:
+        description: Prefix of the local validation image names (<prefix>-<component>:ci); defaults to the repository name.
+        type: string
+        default: ''
+      smoke:
+        description: Run the Rocket brick smoke tests (components "api" and "front") on the validation build.
+        type: boolean
+        default: true
+      api-resource:
+        description: Path of an API resource that must be documented and protected (e.g. /api/users).
+        type: string
+        default: /api/users
+      smoke-script:
+        description: >-
+          Optional script (path from the repository root) run after the common smoke test of each component, with the
+          component as argument and IMAGE, API (http://localhost:8080) and FRONT (http://localhost:3000) in the environment.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.images) }}
+    env:
+      PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+      LOCAL_IMAGE: ${{ format('{0}-{1}:ci', inputs.image-prefix || github.event.repository.name, matrix.component) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags are needed by git describe (version written in the images).
+          fetch-depth: 0
+      - id: vars
+        env:
+          IMAGE_INPUT: ${{ matrix.image }}
+          REPO: ${{ github.repository }}
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          echo "version=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+          image="${IMAGE_INPUT:-ghcr.io/$REPO-$COMPONENT}"
+          echo "image=${image,,}" >> "$GITHUB_OUTPUT"
+      - if: env.PUBLISH == 'true'
+        uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.vars.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=ref,event=branch,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=sha,format=short
+          labels: |
+            org.opencontainers.image.version=${{ steps.vars.outputs.version }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile || format('{0}/Dockerfile', matrix.context) }}
+          target: ${{ matrix.target || 'prod' }}
+          build-args: APP_VERSION=${{ steps.vars.outputs.version }}
+          platforms: ${{ env.PUBLISH == 'true' && inputs.platforms || inputs.validation-platform }}
+          push: ${{ env.PUBLISH == 'true' }}
+          load: ${{ env.PUBLISH != 'true' }}
+          tags: ${{ env.PUBLISH == 'true' && steps.meta.outputs.tags || env.LOCAL_IMAGE }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ env.PUBLISH == 'true' && steps.meta.outputs.annotations || '' }}
+          sbom: ${{ env.PUBLISH == 'true' }}
+          provenance: ${{ env.PUBLISH == 'true' && 'mode=max' || 'false' }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+      - name: Image size
+        if: env.PUBLISH != 'true'
+        run: docker image ls "$LOCAL_IMAGE" --format '{{.Repository}}:{{.Tag}} {{.Size}}' | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Smoke test (api)
+        if: env.PUBLISH != 'true' && inputs.smoke && matrix.component == 'api'
+        env:
+          API_RESOURCE: ${{ inputs.api-resource }}
+        run: |
+          docker run --rm -e APP_SECRET=ci -e JWT_PASSPHRASE=ci "$LOCAL_IMAGE" php bin/console about
+          docker run -d --name api -p 8080:80 -e APP_SECRET=ci -e JWT_PASSPHRASE=ci "$LOCAL_IMAGE"
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/api/docs.jsonopenapi -o /dev/null && break; sleep 2; done
+          # The OpenAPI document is JSON: "/" is escaped as "\/".
+          curl -fsS http://localhost:8080/api/docs.jsonopenapi | grep -qF "${API_RESOURCE//\//\\/}"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080$API_RESOURCE")" = 401
+      - name: Smoke test (front)
+        if: env.PUBLISH != 'true' && inputs.smoke && matrix.component == 'front'
+        run: |
+          docker run -d --name front -p 3000:3000 "$LOCAL_IMAGE"
+          for i in $(seq 1 30); do curl -fsS http://localhost:3000/login -o /dev/null && break; sleep 1; done
+          curl -fsSI http://localhost:3000/login | grep -i "content-security-policy: frame-ancestors 'none'"
+      - name: Smoke test (brick script)
+        if: env.PUBLISH != 'true' && inputs.smoke-script != ''
+        env:
+          SMOKE_SCRIPT: ${{ inputs.smoke-script }}
+          COMPONENT: ${{ matrix.component }}
+          IMAGE: ${{ env.LOCAL_IMAGE }}
+          API: http://localhost:8080
+          FRONT: http://localhost:3000
+        run: bash -e "$SMOKE_SCRIPT" "$COMPONENT"

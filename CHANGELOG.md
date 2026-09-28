@@ -1,5 +1,10 @@
 # Changelog
 
+## [Non publié]
+
+### Ajouté
+- Workflow réutilisable `docker-images.yml` : images Docker publiées sur GHCR uniquement pour les tags `v*` et `workflow_dispatch`, multi-arch amd64/arm64, labels OCI, SBOM et provenance ; build amd64 de validation (non poussé) et tests de fumée sur les PR.
+
 ## [0.3.0] - 2026-09-28
 
 ### Ajouté
