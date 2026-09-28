@@ -8,7 +8,7 @@ Socle commun des briques du Middleware Rocket (Mailer, Auth, Cloud, Print, bient
 - Application de test : `tests/App` (Kernel, config, `bin/console`) ; tests `tests/Functional`, `tests/Integration`.
 - Coffre des secrets : `Secrets\SecretVault` (`get`, `getOrEnv`…), `SecretsKeyring` (`ROCKET_SECRETS_KEY`, rotation), `SecretController` (`/api/secrets`, admin), commandes `rocket:secrets:*` ; front `pages/secrets.vue`, `SecretField`. À ne pas confondre avec `Security\SecretBox` (LDAP, OIDC).
 - Thèmes : `ColorPalette`, `Theme\ProjectTheme` (réglage `theme.palette`), `Application::$palette`, `GET /api/theme` public ; front `plugins/theme.client.ts`, `useTheme`, `utils/palette.ts`, `pages/palettes.vue`, `ColorModeSwitch`.
-- `suite/` : les briques ensemble (compose + e2e Playwright), workflow `Suite`.
+- Les briques ensemble (compose, e2e Playwright, Codespace) : dépôt [rocket-suite](https://github.com/fayouz/rocket-suite).
 - `.github/workflows/brick-*.yml` : workflows réutilisables appelés par les briques (`@vX.Y.Z`).
 
 ## Vérifier avant de pousser
